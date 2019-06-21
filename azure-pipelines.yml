@@ -5,14 +5,14 @@ jobs:
     matrix:
       linux:
         imageName: 'ubuntu-16.04'
-      mac:
-        imageName: 'macos-10.13'
-      windows_2017:
-        imageName: 'vs2017-win2016'
-      windows_2015:
-        imageName: 'vs2017-win2016'
-      alpine:
-        imageName: 'ubuntu-16.04'
+#      mac:
+#        imageName: 'macos-10.13'
+#      windows_2017:
+#        imageName: 'vs2017-win2016'
+#      windows_2015:
+#        imageName: 'vs2017-win2016'
+#      alpine:
+#        imageName: 'ubuntu-16.04'
   pool:
     vmImage: $(imageName)
   steps:
@@ -34,5 +34,13 @@ jobs:
   - script: choco install nasm -fy
     displayName: Install Windows Assembler (NASM)
     condition: contains(variables['Agent.JobName'], 'windows')
-  - script: echo something something
+  - bash: |
+      wget -q https://github.com/nodejs/node/archive/v10.16.0.zip
+      unzip v10.16.0.zip
+      cd node-10.16.0
+      ./configure
+      make -j2
     displayName: Build base node binaries
+
+
+
