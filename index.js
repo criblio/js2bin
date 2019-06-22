@@ -12,6 +12,36 @@ const mkdirAsync = promisify(fs.mkdir);
 const copyFileAsync = promisify(fs.copyFile);
 const renameAsync = promisify(fs.rename);
 
+const prettyPlatform = {
+  win32: 'windows',
+  windows: 'windows',
+  win: 'windows',
+  darwin: 'mac',
+  macos: 'mac',
+  mac: 'mac',
+  linux: 'linux',
+  static: 'alpine',
+  alpine: 'alpine'
+}
+
+const prettyArch = {
+  x86: 'x86',
+  arm6: 'arm6l',
+  arm64: 'arm64',
+  arm6l: 'arm6l',
+  arm: 'arm7l',
+  arm7: 'arm7l',
+  arm7l: 'arm7l',
+  amd64: 'x64',
+  ia32: 'x86',
+  x32: 'x86',
+  x64: 'x64'
+}
+
+function log() {
+  console.log(`${new Date().toISOString()} -`, ...arguments);
+}
+
 function mkdirp(path) {
   return mkdirAsync(path).catch(err => {
     if(err.code === 'ENOENT') {
@@ -27,7 +57,7 @@ function mkdirp(path) {
 
 function runCommand(command, args, cwd, env=undefined, verbose=true) {
   return new Promise((resolve, reject) => {
-    console.log(`${new Date()} - running: ${command} ${args.join(' ')} ...`);
+    log(`running: ${command} ${args.join(' ')} ...`);
     spawn(command, args, {
       cwd,
       env: env || {...process.env},
@@ -51,7 +81,7 @@ function download(url, toFile){
     if (!toFile || toFile.length===0) {
       throw new Error(`Invalid Argument - file: [${toFile}] is undefined or empty!`);
     }
-    console.log(`downloading ${url} to ${toFile} ...`);
+    log(`downloading ${url} to ${toFile} ...`);
     const proto = url.startsWith('https://') ? https : http ;
     const dir = dirname(toFile);
     mkdirp(dir).then(() => {
@@ -64,6 +94,42 @@ function download(url, toFile){
     });
   });
 }
+
+function upload(url, file){
+  return new Promise((resolve,reject) => {
+    log(`uploading file=${file}, url=${url} ...`);
+    if (!url || url.length===0) {
+      throw new Error(`Invalid Argument - url [${url}] is undefined or empty!`);
+    }
+    const fstat = fs.statSync(file);
+    if(!fstat.isFile()) {
+      throw new Error(`Invalid Argument - file [${file}] must be a file`);
+    }
+    const _url = new URL(url);
+    const options = {
+      hostname: _url.hostname,
+      port: _url.port,
+      path: `${_url.pathname}${_url.search}`,
+      method: 'POST',
+      headers: {
+        Authorization: 'token ' + process.env.GITHUB_TOKEN,
+        'Content-Type': 'application/octet-stream',
+        'Content-Length': fstat.size
+      }
+    };
+    const proto = url.startsWith('https://') ? https : http ;
+    const req = proto.request(options, (res) => {
+      res.on('data', data => log(data.toString()));
+      res.on('end', () => resolve());
+    });
+    
+    req.on('error', reject);
+    // Write data to request body
+    fs.createReadStream(file)
+      .pipe(req);
+  });
+}
+
 
 class NodeJsBuilder {
 
@@ -82,11 +148,22 @@ class NodeJsBuilder {
   downloadExpandNodeSource() {
     const url = `https://nodejs.org/dist/v${this.version}/node-v${this.version}.tar.gz`;
     if(fs.existsSync(this.nodePath('configure'))) {
-      console.log(`node version=${this.version} already downloaded and expanded`)
+      log(`node version=${this.version} already downloaded and expanded`)
       return Promise.resolve();
     }
     return download(url, this.nodeSrcFile)
       .then(() => runCommand('tar', ['-xf', basename(this.nodeSrcFile)], dirname(this.nodeSrcFile)))
+  }
+
+  uploadNodeBinary(name) {
+    if(!name) {
+      const arch = process.arch in prettyArch ? prettyArch[process.arch] : process.arch;
+      const platform = prettyPlatform[process.platform];
+      name = `${platform}-${arch}-${this.version}`;
+    }
+    const baseUrl = 'https://uploads.github.com/repos/criblio/node-one/releases/18154804/assets';
+    const url = `${baseUrl}?name=${encodeURIComponent(name)}`;
+    return upload(url, this.resultFile);
   }
 
   nodePath(...pathSegments) {
@@ -118,8 +195,9 @@ class NodeJsBuilder {
       ))
       //TODO: install app_main.js
       .then(() => {
-        if(this.appFile === '__1MB__') {
-          const appMainCont = '~N~o~D~e~o~N~e~\n'.repeat(1024*1024/16);
+        const m = /^__(\d+)MB__$/.exec(this.appFile);
+        if(m) {
+          const appMainCont = '~N~o~D~e~o~N~e~\n'.repeat(Number(m[1])*1024*1024/16);
           fs.writeFileSync(appMainPath, appMainCont);
         } else {
           const fileCont = fs.readFileSync(this.appFile);
@@ -148,17 +226,17 @@ class NodeJsBuilder {
       .then(() => this.prepareNodeJsBuild())
       .then(() => runCommand(this.configure, [], this.nodeSrcDir))
       .then(() => runCommand(this.make, ['-j2'], this.nodeSrcDir))
+      .then(() => this.uploadNodeBinary())
       .then(() => {
-        console.log(`RESULTS: ${this.resultFile}`);
+        log(`RESULTS: ${this.resultFile}`);
         return this.resultFile;
-      });
+      })
   }
 
   buildFromCached(platform) {
 
   }
-  
 }
 
-const builder = new NodeJsBuilder('10.16.0', process.argv[2] || '__1MB__');
+const builder = new NodeJsBuilder('10.16.0', process.argv[2] || '__3MB__');
 builder.buildFromSource();

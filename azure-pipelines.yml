@@ -36,6 +36,7 @@ jobs:
     condition: contains(variables['Agent.JobName'], 'windows')
   - script: node index.js
     displayName: Build base node binaries
-
+    env:
+      GITHUB_TOKEN: $(PersonalGithubToken)
 
 

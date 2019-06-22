@@ -5,8 +5,12 @@ const { NativeModule } = require('internal/bootstrap/loaders');
 const { join, dirname } = require('path');
 
 
-const source = NativeModule.getSource('app_main');
 const filename = join(dirname(process.execPath), 'app_main.js');
+let source = NativeModule.getSource('app_main');
+const nullIdx = source.indexOf('\0');
+if(nullIdx > -1) {
+  source = source.substr(0, nullIdx);
+}
 
 // here we turn what looks like an internal module to an non-internal one
 // that way the module is loaded exactly as it would by: node app_main.js
