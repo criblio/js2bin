@@ -34,12 +34,7 @@ jobs:
   - script: choco install nasm -fy
     displayName: Install Windows Assembler (NASM)
     condition: contains(variables['Agent.JobName'], 'windows')
-  - bash: |
-      wget -q https://github.com/nodejs/node/archive/v10.16.0.zip
-      unzip v10.16.0.zip
-      cd node-10.16.0
-      ./configure
-      make -j2
+  - script: node index.js
     displayName: Build base node binaries
 
 
