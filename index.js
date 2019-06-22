@@ -202,7 +202,7 @@ class NodeJsBuilder {
       .then(() => {
         const m = /^__(\d+)MB__$/.exec(this.appFile);
         if(m) {
-          fs.writeFileSync(appMainPath, getPlaceholderContent(Number(m[1])));
+          fs.writeFileSync(appMainPath, this.getPlaceholderContent(Number(m[1])));
         } else {
           const fileCont = fs.readFileSync(this.appFile);
           fs.writeFileSync(appMainPath, gzipSync(fileCont).toString('base64'));
