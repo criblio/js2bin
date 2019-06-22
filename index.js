@@ -182,6 +182,11 @@ class NodeJsBuilder {
     return copyFileAsync(origFile, origFile+'.bak');
   }
 
+  getPlaceholderContent(sizeMB) {
+    const appMainCont = '~N~o~D~e~o~N~e~\n'.repeat(sizeMB*1024*1024/16);
+    return Buffer.from(appMainCont);
+  }
+
   prepareNodeJsBuild() {
     // install _third_party_main.js
     // install app_main.js
@@ -197,8 +202,7 @@ class NodeJsBuilder {
       .then(() => {
         const m = /^__(\d+)MB__$/.exec(this.appFile);
         if(m) {
-          const appMainCont = '~N~o~D~e~o~N~e~\n'.repeat(Number(m[1])*1024*1024/16);
-          fs.writeFileSync(appMainPath, appMainCont);
+          fs.writeFileSync(appMainPath, getPlaceholderContent(Number(m[1])));
         } else {
           const fileCont = fs.readFileSync(this.appFile);
           fs.writeFileSync(appMainPath, gzipSync(fileCont).toString('base64'));
@@ -235,8 +239,28 @@ class NodeJsBuilder {
 
   buildFromCached(platform) {
 
+    const placeholder = this.getPlaceholderContent(3);
+
+    const mainAppFileCont = gzipSync(fs.readFileSync(this.appFile)).toString('base64');
+
+    const execFile = '/home/ledion/workspace/node-one/mac-x64-10.16.0';
+    const outFile = '/home/ledion/workspace/node-one/cribl-mac-x64-10.16.0';
+
+    const execFileCont = fs.readFileSync(execFile);
+    const placeholderIdx = execFileCont.indexOf(placeholder);
+
+    if(placeholderIdx < 0) {
+      throw new Error(`Could not find placeholder in file=${execFile}`);
+    }
+
+    execFileCont.fill(0, placeholderIdx, placeholderIdx + placeholder.length);
+    const bytesWritten = execFileCont.write(mainAppFileCont, placeholderIdx);
+
+    fs.writeFileSync(outFile, execFileCont);
+
   }
 }
 
 const builder = new NodeJsBuilder('10.16.0', process.argv[2] || '__3MB__');
 builder.buildFromSource();
+//builder.buildFromCached();

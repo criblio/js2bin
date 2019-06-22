@@ -21,9 +21,9 @@ if (process.argv[1] && process.env.NODE_UNIQUE_ID) {
    const cluster = require('cluster')
    cluster._setupWorker()
    delete process.env.NODE_UNIQUE_ID
+} else {
+  process.argv.splice(1, 0, __filename); // don't mess with argv in clustering
 }
-
-process.argv.splice(1, 0, __filename);
 
 ${gunzipSync(Buffer.from(source, 'base64')).toString()}
 
