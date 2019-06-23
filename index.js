@@ -83,16 +83,22 @@ function download(url, toFile){
     }
     log(`downloading ${url} to ${toFile} ...`);
     const proto = url.startsWith('https://') ? https : http ;
-    const dir = dirname(toFile);
-    mkdirp(dir).then(() => {
-      const outFile = fs.createWriteStream(toFile);
-      const request = proto.get(url, function(response) {
-        response.on('error', reject);
+    const request = proto.get(url, function(response) {
+      if(response.statusCode !== 200) {
+        return reject(new Error(`Non-OK response, statusCode=${response.statusCode}, url=${url}`));
+      }
+      response.on('error', reject);
+      mkdirp(dirname(toFile)).then(() => {
+        const outFile = fs.createWriteStream(toFile);
         outFile.on('finish', () => resolve());
         response.pipe(outFile);
       });
     });
-  });
+  })
+  .catch(err => {
+    try{ fs.unlinkSync(toFile); } catch(ignore){} 
+    throw err; 
+  })
 }
 
 function upload(url, file){
@@ -130,6 +136,9 @@ function upload(url, file){
   });
 }
 
+function buildName(platform, arch, placeHolderSizeMB, version) {
+  return `${platform}-${placeHolderSizeMB}MB-${arch}-${version}`;
+}
 
 class NodeJsBuilder {
 
@@ -142,7 +151,9 @@ class NodeJsBuilder {
     this.srcDir = join(__dirname, 'src');
     this.nodeSrcFile = join('build', `node-v${version}.tar.gz`);
     this.nodeSrcDir = join('build', `node-v${version}`);
+    this.cacheDir = 'cache';
     this.resultFile = isWindows ? join(this.nodeSrcDir, 'Release', 'node.exe') : join(this.nodeSrcDir, 'out', 'Release', 'node');
+    this.placeHolderSizeMB = -1;
   }
 
   downloadExpandNodeSource() {
@@ -152,15 +163,30 @@ class NodeJsBuilder {
       return Promise.resolve();
     }
     return download(url, this.nodeSrcFile)
+      //TODO: windows
       .then(() => runCommand('tar', ['-xf', basename(this.nodeSrcFile)], dirname(this.nodeSrcFile)))
+  }
+
+  downloadCachedBuild(platform, arch, placeHolderSizeMB) {
+    placeHolderSizeMB = placeHolderSizeMB || this.placeHolderSizeMB;
+    const name = buildName(platform, arch, placeHolderSizeMB, this.version);
+    //TODO:
+    const baseUrl = 'https://github.com/criblio/node-one/releases/download/v0.01/';
+    const url = `${baseUrl}${name}`;
+    const filename = join(this.cacheDir, name);
+    if(fs.existsSync(filename)) {
+      return Promise.resolve(filename);
+    }
+    return download(url, filename);
   }
 
   uploadNodeBinary(name) {
     if(!name) {
       const arch = process.arch in prettyArch ? prettyArch[process.arch] : process.arch;
       const platform = prettyPlatform[process.platform];
-      name = `${platform}-${arch}-${this.version}`;
+      name = buildName(platform, arch, this.placeHolderSizeMB, this.version);
     }
+    //TODO:
     const baseUrl = 'https://uploads.github.com/repos/criblio/node-one/releases/18154804/assets';
     const url = `${baseUrl}?name=${encodeURIComponent(name)}`;
     return upload(url, this.resultFile);
@@ -202,7 +228,8 @@ class NodeJsBuilder {
       .then(() => {
         const m = /^__(\d+)MB__$/.exec(this.appFile);
         if(m) {
-          fs.writeFileSync(appMainPath, this.getPlaceholderContent(Number(m[1])));
+          this.placeHolderSizeMB = Number(m[1]);
+          fs.writeFileSync(appMainPath, this.getPlaceholderContent(this.placeHolderSizeMB));
         } else {
           const fileCont = fs.readFileSync(this.appFile);
           fs.writeFileSync(appMainPath, gzipSync(fileCont).toString('base64'));
@@ -237,30 +264,31 @@ class NodeJsBuilder {
       })
   }
 
-  buildFromCached(platform) {
-
-    const placeholder = this.getPlaceholderContent(3);
-
+  buildFromCached(platform='linux', arch='x64', outFile=undefined) {
     const mainAppFileCont = gzipSync(fs.readFileSync(this.appFile)).toString('base64');
+    this.placeHolderSizeMB = 2; // TODO: 
 
-    const execFile = '/home/ledion/workspace/node-one/mac-x64-10.16.0';
-    const outFile = '/home/ledion/workspace/node-one/cribl-mac-x64-10.16.0';
+    return this.downloadCachedBuild(platform, arch)
+      .then(cachedFile => {
+        const placeholder = this.getPlaceholderContent(this.placeHolderSizeMB);
 
-    const execFileCont = fs.readFileSync(execFile);
-    const placeholderIdx = execFileCont.indexOf(placeholder);
-
-    if(placeholderIdx < 0) {
-      throw new Error(`Could not find placeholder in file=${execFile}`);
-    }
-
-    execFileCont.fill(0, placeholderIdx, placeholderIdx + placeholder.length);
-    const bytesWritten = execFileCont.write(mainAppFileCont, placeholderIdx);
-
-    fs.writeFileSync(outFile, execFileCont);
-
+        outFile = outFile || `app-${platform}-${arch}-${this.version}`;
+        const execFileCont = fs.readFileSync(cachedFile);
+        const placeholderIdx = execFileCont.indexOf(placeholder);
+    
+        if(placeholderIdx < 0) {
+          throw new Error(`Could not find placeholder in file=${cachedFile}`);
+        }
+    
+        execFileCont.fill(0, placeholderIdx, placeholderIdx + placeholder.length);
+        const bytesWritten = execFileCont.write(mainAppFileCont, placeholderIdx);
+    
+        return mkdirp(dirname(outFile))
+          .then(() => fs.writeFileSync(outFile, execFileCont));
+      });
   }
 }
 
-const builder = new NodeJsBuilder('10.16.0', process.argv[2] || '__3MB__');
+const builder = new NodeJsBuilder('10.16.0', process.argv[2] || '__2MB__');
 builder.buildFromSource();
-//builder.buildFromCached();
+// builder.buildFromCached();
