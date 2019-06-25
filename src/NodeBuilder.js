@@ -3,7 +3,8 @@ const {log, download, upload, mkdirp, copyFileAsync, runCommand, renameAsync} = 
 const {gzipSync, createGunzip} = require('zlib');
 const { join, dirname, basename, resolve } = require('path');
 const fs = require('fs');
-var tar = require('tar-fs')
+const os = require('os');
+const tar = require('tar-fs')
 
 const isWindows = process.platform === 'win32';
 
@@ -53,6 +54,10 @@ class NodeJsBuilder {
     this.cacheDir = 'cache';
     this.resultFile = isWindows ? join(this.nodeSrcDir, 'Release', 'node.exe') : join(this.nodeSrcDir, 'out', 'Release', 'node');
     this.placeHolderSizeMB = -1;
+  }
+
+  static platform() {
+    return prettyPlatform[process.platform];
   }
 
   downloadExpandNodeSource() {
@@ -132,7 +137,7 @@ class NodeJsBuilder {
         this.nodePath('lib', '_third_party_main.js'),
       ))
       .then(() => {
-        const m = /^__(\d+)MB__$/.exec(this.appFile); // placeholder file
+        const m = /^__(\d+)MB__$/i.exec(this.appFile); // placeholder file
         if(m) {
           this.placeHolderSizeMB = Number(m[1]);
           fs.writeFileSync(appMainPath, this.getPlaceholderContent(this.placeHolderSizeMB));
@@ -162,7 +167,7 @@ class NodeJsBuilder {
     return this.downloadExpandNodeSource()
       .then(() => this.prepareNodeJsBuild())
       .then(() => runCommand(this.configure, [], this.nodeSrcDir))
-      .then(() => runCommand(this.make, ['-j2'], this.nodeSrcDir))
+      .then(() => runCommand(this.make, [`-j${os.cpus().length}`], this.nodeSrcDir))
       .then(() => this.uploadNodeBinary())
       .then(() => {
         log(`RESULTS: ${this.resultFile}`);
@@ -194,14 +199,7 @@ class NodeJsBuilder {
       });
   }
 }
-let p = Promise.resolve();
-['10.16.0', '12.4.0'].forEach(version => {
-  ['__2MB__', '__4MB__'].forEach(size => {
-    const builder = new NodeJsBuilder(version, size);
-    p = p.then(() => {
-      log(`building for version=${version}, size=${size}}`);
-      return builder.buildFromSource();
-    });
-  });
-  // builder.buildFromCached('mac');
-});
+
+module.exports = {
+  NodeJsBuilder
+};

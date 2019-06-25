@@ -9,8 +9,8 @@ jobs:
         imageName: 'macos-10.13'
 #      windows_2017:
 #        imageName: 'vs2017-win2016'
-#      windows_2015:
-#        imageName: 'vs2017-win2016'
+      windows_2015:
+        imageName: 'vs2017-win2016'
 #      alpine:
 #        imageName: 'ubuntu-16.04'
   pool:
@@ -36,7 +36,7 @@ jobs:
     condition: contains(variables['Agent.JobName'], 'windows')
   - script: npm ci
     displayName: Install dependencies
-  - script: node index.js
+  - script: node index.js ci 10.16.0 2MB,4MB
     displayName: Build base node binaries
     env:
       GITHUB_TOKEN: $(PersonalGithubToken)
