@@ -83,7 +83,7 @@ function download(url, toFile){
   })
 }
 
-function upload(url, file){
+function upload(url, file, headers){
   return new Promise((resolve,reject) => {
     log(`uploading file=${file}, url=${url} ...`);
     if (!url || url.length===0) {
@@ -99,8 +99,8 @@ function upload(url, file){
       port: _url.port,
       path: `${_url.pathname}${_url.search}`,
       method: 'POST',
-      headers: {
-        Authorization: 'token ' + process.env.GITHUB_TOKEN,
+      headers: { 
+        ...headers,
         'Content-Type': 'application/octet-stream',
         'Content-Length': fstat.size
       }

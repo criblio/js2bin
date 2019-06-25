@@ -101,7 +101,9 @@ class NodeJsBuilder {
     //TODO:
     const baseUrl = 'https://uploads.github.com/repos/criblio/node-one/releases/18154804/assets';
     const url = `${baseUrl}?name=${encodeURIComponent(name)}`;
-    return upload(url, this.resultFile);
+    return upload(url, this.resultFile, {
+      Authorization: 'token ' + process.env.GITHUB_TOKEN,
+    });
   }
 
   nodePath(...pathSegments) {
@@ -164,10 +166,11 @@ class NodeJsBuilder {
   //4. process mainAppFile (gzip, base64 encode it) - could be a placeholder file
   //5. kick off ./configure & build
   buildFromSource(){
+    const makeArgs = isWindows ? ['nosign', 'release'] : [`-j${os.cpus().length}`];
     return this.downloadExpandNodeSource()
       .then(() => this.prepareNodeJsBuild())
       .then(() => !isWindows && runCommand(this.configure, [], this.nodeSrcDir))
-      .then(() => runCommand(this.make, [`-j${os.cpus().length}`], this.nodeSrcDir))
+      .then(() => runCommand(this.make, makeArgs, this.nodeSrcDir))
       .then(() => this.uploadNodeBinary())
       .then(() => {
         log(`RESULTS: ${this.resultFile}`);
