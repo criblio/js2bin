@@ -166,7 +166,7 @@ class NodeJsBuilder {
   buildFromSource(){
     return this.downloadExpandNodeSource()
       .then(() => this.prepareNodeJsBuild())
-      .then(() => runCommand(this.configure, [], this.nodeSrcDir))
+      .then(() => !isWindows && runCommand(this.configure, [], this.nodeSrcDir))
       .then(() => runCommand(this.make, [`-j${os.cpus().length}`], this.nodeSrcDir))
       .then(() => this.uploadNodeBinary())
       .then(() => {
