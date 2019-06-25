@@ -34,6 +34,8 @@ jobs:
   - script: choco install nasm -fy
     displayName: Install Windows Assembler (NASM)
     condition: contains(variables['Agent.JobName'], 'windows')
+  - script: npm ci
+    displayName: Install dependencies
   - script: node index.js
     displayName: Build base node binaries
     env:
