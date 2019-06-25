@@ -1,12 +1,11 @@
 
 const Module = require('module');
 const { gunzipSync } = require('zlib');
-const { NativeModule } = require('internal/bootstrap/loaders');
 const { join, dirname } = require('path');
 
 
 const filename = join(dirname(process.execPath), 'app_main.js');
-let source = NativeModule.getSource('app_main');
+let source = process.binding('natives')['app_main'];
 const nullIdx = source.indexOf('\0');
 if(nullIdx > -1) {
   source = source.substr(0, nullIdx);
