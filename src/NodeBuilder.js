@@ -194,12 +194,14 @@ class NodeJsBuilder {
       });
   }
 }
-let p = Promise.resolve()
+let p = Promise.resolve();
 ['10.16.0', '12.4.0'].forEach(version => {
   ['__2MB__', '__4MB__'].forEach(size => {
     const builder = new NodeJsBuilder(version, size);
-    log(`building for ${{version, size}}`)
-    p = p.then(() => builder.buildFromSource());
+    p = p.then(() => {
+      log(`building for version=${version}, size=${size}}`);
+      return builder.buildFromSource();
+    });
   });
   // builder.buildFromCached('mac');
 });
