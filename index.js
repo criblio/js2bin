@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 
 const { NodeJsBuilder } = require('./src/NodeBuilder');
 const { log } = require('./src/util');
