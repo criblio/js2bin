@@ -26,5 +26,10 @@
   "homepage": "https://github.com/criblio/node-one#readme",
   "dependencies": {
     "tar-fs": "^2.0.0"
+  },
+  { 
+    "bin": { 
+      "node-one": "index.js" 
+    } 
   }
 }
