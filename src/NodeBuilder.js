@@ -13,9 +13,9 @@ const prettyPlatform = {
   win32: 'windows',
   windows: 'windows',
   win: 'windows',
-  darwin: 'mac',
-  macos: 'mac',
-  mac: 'mac',
+  darwin: 'darwin',
+  macos: 'darwin',
+  mac: 'darwin',
   linux: 'linux',
   static: 'alpine',
   alpine: 'alpine'
