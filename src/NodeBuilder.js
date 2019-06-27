@@ -82,7 +82,7 @@ class NodeJsBuilder {
     placeHolderSizeMB = placeHolderSizeMB || this.placeHolderSizeMB;
     const name = buildName(platform, arch, placeHolderSizeMB, this.version);
     //TODO:
-    const baseUrl = 'https://github.com/criblio/node-one/releases/download/v0.01/';
+    const baseUrl = 'https://github.com/criblio/js2bin/releases/download/v0.01/';
     const url = `${baseUrl}${name}`;
     const filename = join(this.cacheDir, name);
     if(fs.existsSync(filename)) {
@@ -99,7 +99,7 @@ class NodeJsBuilder {
       name = buildName(platform, arch, this.placeHolderSizeMB, this.version);
     }
     //TODO:
-    const baseUrl = 'https://uploads.github.com/repos/criblio/node-one/releases/18154804/assets';
+    const baseUrl = 'https://uploads.github.com/repos/criblio/js2bin/releases/18154804/assets';
     const url = `${baseUrl}?name=${encodeURIComponent(name)}`;
     return upload(url, this.resultFile, {
       Authorization: 'token ' + process.env.GITHUB_TOKEN,

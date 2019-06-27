@@ -1,5 +1,5 @@
 {
-  "name": "node-one",
+  "name": "js2bin",
   "version": "1.0.0",
   "description": "Native binary for your NodeJS apps",
   "main": "index.js",
@@ -8,10 +8,10 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/criblio/node-one.git"
+    "url": "git+https://github.com/criblio/js2bin.git"
   },
   "keywords": [
-    "node-one",
+    "js2bin",
     "binary",
     "binaries",
     "executable",
@@ -21,13 +21,13 @@
   "author": "Cribl Inc",
   "license": "Apache-2.0",
   "bugs": {
-    "url": "https://github.com/criblio/node-one/issues"
+    "url": "https://github.com/criblio/js2bin/issues"
   },
-  "homepage": "https://github.com/criblio/node-one#readme",
+  "homepage": "https://github.com/criblio/js2bin#readme",
   "dependencies": {
     "tar-fs": "^2.0.0"
   },
-  "bin": { 
-    "node-one": "index.js" 
-  } 
+  "bin": {
+    "js2bin": "index.js"
+  }
 }
