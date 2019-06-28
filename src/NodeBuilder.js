@@ -42,9 +42,19 @@ function buildName(platform, arch, placeHolderSizeMB, version) {
 
 class NodeJsBuilder {
 
-  constructor(version, mainAppFile) {
+  constructor(version, mainAppFile, appName) {
     this.version = version;
-    this.appFile = mainAppFile;
+    this.appFile = resolve(mainAppFile);
+    this.appName = appName;
+    if(!this.appName) {
+      if(basename(this.appFile) !== 'index.js') { // use filename if ! index.js
+        this.appName = basename(this.appFile).split('.')[0];
+      }else if(basename(dirname(this.appFile))) { // parent dir
+        this.appName = basename(dirname(this.appFile));
+      } else {
+        this.appName = 'app_main';
+      }
+    }
     const isBsd = process.platform.indexOf('bsd') > -1;
     this.make = isWindows ? 'vcbuild.bat' : isBsd ? 'gmake' : 'make';
     this.configure = isWindows ? 'configure' : './configure';
@@ -124,7 +134,12 @@ class NodeJsBuilder {
 
   getPlaceholderContent(sizeMB) {
     const appMainCont = '~N~o~D~e~o~N~e~\n'.repeat(sizeMB*1024*1024/16);
-    return Buffer.from(appMainCont);
+    return Buffer.from(`'${appMainCont}'`);
+  }
+
+  getAppContentToBundle() {
+    const mainAppFileCont = gzipSync(fs.readFileSync(this.appFile)).toString('base64');
+    return Buffer.from(this.appName).toString('base64') + '\n' + mainAppFileCont;
   }
 
   prepareNodeJsBuild() {
@@ -132,29 +147,28 @@ class NodeJsBuilder {
     // install app_main.js
     // update node.gyp
     const nodeGypPath = this.nodePath('node.gyp');
-    const appMainPath = this.nodePath('lib', 'app_main.js');
+    const appMainPath = this.nodePath('lib', '_js2bin_app_main.js');
     return Promise.resolve()
       .then(() => copyFileAsync(
-        join(this.srcDir, '_third_party_main.js'),
+        join(this.srcDir, '_third_party_main.js'),   // this is the entrypoint to the light wrapper that js2bin inserts
         this.nodePath('lib', '_third_party_main.js'),
       ))
       .then(() => {
-        const m = /^__(\d+)MB__$/i.exec(this.appFile); // placeholder file
+        const m = /^__(\d+)MB__$/i.exec(basename(this.appFile)); // placeholder file
         if(m) {
           this.placeHolderSizeMB = Number(m[1]);
           fs.writeFileSync(appMainPath, this.getPlaceholderContent(this.placeHolderSizeMB));
         } else {
-          const fileCont = fs.readFileSync(this.appFile);
-          fs.writeFileSync(appMainPath, gzipSync(fileCont).toString('base64'));
+          fs.writeFileSync(appMainPath, this.getAppContentToBundle());
         }
       })
       .then(() => this.revertBackup(nodeGypPath))
       .then(() => this.createBackup(nodeGypPath))
       .then(() => {
         const nodeGypCont = fs.readFileSync(nodeGypPath)
-          .toString().replace(/('lib\/sys.js',)/, "$1"+
-          "\n      'lib/_third_party_main.js'," + 
-          "\n      'lib/app_main.js',"
+          .toString().replace(/('lib\/sys.js',)/, "$1"
+          + "\n      'lib/_third_party_main.js'," 
+          + "\n      'lib/_js2bin_app_main.js',"
         );
         fs.writeFileSync(nodeGypPath, nodeGypCont);
       });
@@ -179,7 +193,7 @@ class NodeJsBuilder {
   }
 
   buildFromCached(platform='linux', arch='x64', outFile=undefined) {
-    const mainAppFileCont = gzipSync(fs.readFileSync(this.appFile)).toString('base64');
+    const mainAppFileCont = this.getAppContentToBundle();
     this.placeHolderSizeMB = 2; // TODO: 
 
     return this.downloadCachedBuild(platform, arch)

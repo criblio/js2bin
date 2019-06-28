@@ -7,11 +7,26 @@ const fs = require('fs');
 function usage(msg) {
   if(msg)
     console.log(`ERROR: ${msg}`)
-  console.log(`usage: node index.js <ci|build> <node-versions> <other-ags>`);
-  console.log(`ci: compile NodeJS with different pre-allocated application sizes`);
-  console.log(`e.g node index.js ci 10.16.0,12.4.0 2MB,4MB,6MB`);
-  console.log(`build: bundle you application into an executable`);
-  console.log(`e.g node index.js build 10.16.0 mac,windows,linux /path/to/app/index.js`);
+  console.log(`usage: ${process.argv[1]} command <command-args>
+command: --build, --ci
+command-args: take the form of --name=value
+
+--ci: build NodeJS with preallocated space for embedding applications
+  --node: NodeJS version to build from source, can specify more than one. 
+          e.g. --node=10.16.0
+  --size: Amount of preallocated space, can specify more than one. 
+          e.g. --size=2MB --size==4MB
+
+--build: embed your application into the precompiled NodeJS binary.
+  --node:     NodeJS version(s) to use, can specify more than one. 
+              e.g. --node=10.16.0 --node=12.4.0
+  --platform: Platform(s) to build for, can specifiy more than one. 
+              e.g. --platform=linux --plaform=darwin
+  --app:      Path to your (bundled) application. 
+              e.g. --app=/path/to/app/index.js
+  --name:     Application name (optional)
+
+`);
   process.exit(1);
 }
 
@@ -39,7 +54,7 @@ function parseArgs() {
     }
   }
 
-  console.log(args);
+  // console.log(args);
   if(!args['build'] && !args['ci']) {
     return usage(`must use either --build or --ci`);
   }
@@ -81,7 +96,7 @@ if(args['build']) {
     sizes.forEach(size => {
       const builder = new NodeJsBuilder(version, size);
       p = p.then(() => {
-        log(`building for version=${version}, size=${size}}`);
+        log(`building for version=${version}, size=${size}`);
         return builder.buildFromSource();
       });
     });

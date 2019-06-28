@@ -4,12 +4,17 @@ const { gunzipSync } = require('zlib');
 const { join, dirname } = require('path');
 
 
-const filename = join(dirname(process.execPath), 'app_main.js');
-let source = process.binding('natives')['app_main'];
+let source = process.binding('natives')['_js2bin_app_main'];
 const nullIdx = source.indexOf('\0');
 if(nullIdx > -1) {
   source = source.substr(0, nullIdx);
 }
+
+const parts = source.split('\n');
+const appName = Buffer.from(parts[0], 'base64').toString();
+const filename = join(dirname(process.execPath), `${appName.trim()}.js`);
+
+source = parts[1];
 
 // here we turn what looks like an internal module to an non-internal one
 // that way the module is loaded exactly as it would by: node app_main.js
