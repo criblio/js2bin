@@ -8,14 +8,8 @@ function usage(msg) {
   if(msg)
     console.log(`ERROR: ${msg}`)
   console.log(`usage: ${process.argv[1]} command <command-args>
-command: --build, --ci
+command: --build, --ci, --help
 command-args: take the form of --name=value
-
---ci: build NodeJS with preallocated space for embedding applications
-  --node: NodeJS version to build from source, can specify more than one. 
-          e.g. --node=10.16.0
-  --size: Amount of preallocated space, can specify more than one. 
-          e.g. --size=2MB --size==4MB
 
 --build: embed your application into the precompiled NodeJS binary.
   --node:     NodeJS version(s) to use, can specify more than one. 
@@ -26,6 +20,13 @@ command-args: take the form of --name=value
               e.g. --app=/path/to/app/index.js
   --name:     Application name (optional)
 
+--ci: build NodeJS with preallocated space for embedding applications
+  --node: NodeJS version to build from source, can specify more than one. 
+          e.g. --node=10.16.0
+  --size: Amount of preallocated space, can specify more than one. 
+          e.g. --size=2MB --size==4MB
+
+--help: print this help message
 `);
   process.exit(1);
 }
@@ -38,8 +39,10 @@ function parseArgs() {
     if(!arg.startsWith('--')) {
       return usage(`invalid argument: ${arg}`);
     }
-    if(arg === '--help') 
+
+    if(arg === '--help'){
       return usage();
+    }
 
     const parts = arg.substr(2).split('=', 2);
     const name = parts[0];

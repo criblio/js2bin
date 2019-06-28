@@ -5,6 +5,12 @@ const { join, dirname } = require('path');
 
 
 let source = process.binding('natives')['_js2bin_app_main'];
+if(source.startsWith("'~")) {
+  console.log(`js2bin binary with ${Math.floor(source.length/1024/1024)}MB of placeholder content.
+For more info see: js2bin --help`);
+  process.exit(-1);
+}
+
 const nullIdx = source.indexOf('\0');
 if(nullIdx > -1) {
   source = source.substr(0, nullIdx);

@@ -37,7 +37,7 @@ const prettyArch = {
 
 
 function buildName(platform, arch, placeHolderSizeMB, version) {
-  return `${platform}-${placeHolderSizeMB}MB-${arch}-${version}`;
+  return `${platform}-${arch}-${version}-v1-${placeHolderSizeMB}MB`;
 }
 
 class NodeJsBuilder {
