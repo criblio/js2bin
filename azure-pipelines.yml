@@ -36,7 +36,7 @@ jobs:
     condition: contains(variables['Agent.JobName'], 'windows')
   - script: npm ci
     displayName: Install dependencies
-  - script: node index.js --ci --node=12.4.0 --node=10.16.0 --size=2MB --size=4MB
+  - script: node js2bin.js --ci --node=12.4.0 --node=10.16.0 --size=2MB --size=4MB
     displayName: Build base node binaries
     env:
       GITHUB_TOKEN: $(PersonalGithubToken)
