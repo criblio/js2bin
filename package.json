@@ -28,6 +28,6 @@
     "tar-fs": "^2.0.0"
   },
   "bin": {
-    "js2bin": "index.js"
+    "js2bin": "js2bin.js"
   }
 }
