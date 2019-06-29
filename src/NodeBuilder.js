@@ -134,7 +134,7 @@ class NodeJsBuilder {
 
   cleanupBuild() {
     log(`cleaning up build dir=${this.nodeSrcDir}`);
-    return rmrf(this.nodeSrcDir, 5);
+    return rmrf(dirname(this.nodeSrcDir), 5);
   }
 
   getPlaceholderContent(sizeMB) {

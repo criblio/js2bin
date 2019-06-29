@@ -32,16 +32,16 @@ function mkdirp(path) {
 }
 
 function rmrf(dir, retries){
-  console.log(`removing dir=${dir}, retries=${retries}`);
   return statAsync(dir)
     .then(statRes => {
       if(!statRes.isDirectory()){
         return unlinkAsync(dir);
       }
+      console.log(`removing dir=${dir}, retries=${retries}`);
       return readdirAsync(dir)
         .then(entries => {
           let p = Promise.resolve();
-          entries.forEach(e => p = p.then(() => rmrf(join(dir, e))));
+          entries.forEach(e => p = p.then(() => rmrf(join(dir, e), retries)));
           return p.then(() => rmdirAsync(dir));
         })
     })
@@ -115,6 +115,7 @@ function download(url, toFile){
 }
 
 function upload(url, file, headers){
+  const  fileStream = fs.createReadStream(file);
   return new Promise((resolve,reject) => {
     log(`uploading file=${file}, url=${url} ...`);
     if (!url || url.length===0) {
@@ -144,9 +145,15 @@ function upload(url, file, headers){
     
     req.on('error', reject);
     // Write data to request body
-    fs.createReadStream(file)
-      .pipe(req);
-  });
+    fileStream.pipe(req);
+  })
+  .then(
+    () => fileStream.close(), 
+    err => {
+      fileStream.close();
+      throw err;
+    }
+  )
 }
 
 
