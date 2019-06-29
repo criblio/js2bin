@@ -200,7 +200,7 @@ class NodeJsBuilder {
 
   buildFromCached(platform='linux', arch='x64', outFile=undefined) {
     const mainAppFileCont = this.getAppContentToBundle();
-    this.placeHolderSizeMB = 2; // TODO: 
+    this.placeHolderSizeMB = Math.pow(2, Math.floor(Math.log2(mainAppFileCont.length/1024/1024)) + 1); // 2, 4, 8... 
 
     return this.downloadCachedBuild(platform, arch)
       .then(cachedFile => {

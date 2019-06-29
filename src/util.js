@@ -35,7 +35,7 @@ function rmrf(dir){
   return statAsync(dir)
     .then(statRes => {
       if(!statRes.isDirectory()){
-        return unlinAsync(dir);
+        return unlinkAsync(dir);
       }
       return readdirAsync(dir)
         .then(entries => {
