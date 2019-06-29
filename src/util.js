@@ -31,7 +31,7 @@ function mkdirp(path) {
   })
 }
 
-function rmrf(dir){
+function rmrf(dir, retries){
   return statAsync(dir)
     .then(statRes => {
       if(!statRes.isDirectory()){
@@ -45,8 +45,15 @@ function rmrf(dir){
         })
     })
     .catch(err => {
-      if(err.code !== 'ENOENT') // do not throw if what we're trying to remove doesn't exist
-        throw err;
+      if(err.code !== 'ENOENT') {// do not throw if what we're trying to remove doesn't exist
+        if(retires) {
+          return new Promise((resolve, reject) => {
+            setTimeout(() => rmrf(dir, retries--).then(resolve, reject), 1000);
+          })
+        } else {
+          throw err;
+        }
+      }
     })
 }
 

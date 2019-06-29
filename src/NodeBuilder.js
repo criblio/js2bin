@@ -134,7 +134,7 @@ class NodeJsBuilder {
 
   cleanupBuild() {
     log(`cleaning up build dir=${this.nodeSrcDir}`);
-    return rmrf(this.nodeSrcDir);
+    return rmrf(this.nodeSrcDir, 5);
   }
 
   getPlaceholderContent(sizeMB) {
@@ -191,7 +191,7 @@ class NodeJsBuilder {
       .then(() => !isWindows && runCommand(this.configure, [], this.nodeSrcDir))
       .then(() => runCommand(this.make, makeArgs, this.nodeSrcDir))
       .then(() => this.uploadNodeBinary())
-      .then(() => this.cleanupBuild())
+      .then(() => this.cleanupBuild().catch(err => log(err)))
       .then(() => {
         log(`RESULTS: ${this.resultFile}`);
         return this.resultFile;
