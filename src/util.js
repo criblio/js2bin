@@ -46,7 +46,7 @@ function rmrf(dir, retries){
     })
     .catch(err => {
       if(err.code !== 'ENOENT') {// do not throw if what we're trying to remove doesn't exist
-        if(retires) {
+        if(retries) {
           return new Promise((resolve, reject) => {
             setTimeout(() => rmrf(dir, retries--).then(resolve, reject), 1000);
           })
