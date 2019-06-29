@@ -85,14 +85,16 @@ if(args['build']) {
   const plats = asArray(args.platform);
   versions.forEach(version => {
     plats.forEach(plat => {
-      const builder = new NodeJsBuilder(version, app);
+      const builder = new NodeJsBuilder(version, app, args.name);
       p = p.then(() => {
         log(`building for version=${version}, plat=${plat} app=${app}}`);
-        return builder.buildFromCached(plat);
+        const arch = 'x64';
+        const outName = args.name ? `${args.name}-${plat}-${arch}` : undefined;
+        return builder.buildFromCached(plat, arch, outName);
       });
     });
   });
-} if(args['ci']){
+} else if(args['ci']){
   const versions = asArray(args.node);
   const sizes = asArray(args.size || '2MB').map(v => `__${v.trim().toUpperCase()}__`);
   versions.forEach(version => {
