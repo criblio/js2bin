@@ -9,6 +9,10 @@ const fs = require('fs');
 const mkdirAsync = promisify(fs.mkdir);
 const copyFileAsync = promisify(fs.copyFile);
 const renameAsync = promisify(fs.rename);
+const statAsync = promisify(fs.stat);
+const unlinkAsync = promisify(fs.unlink);
+const readdirAsync = promisify(fs.readdir);
+const rmdirAsync = promisify(fs.rmdir);
 
 function log() {
   console.log(`${new Date().toISOString()} -`, ...arguments);
@@ -25,6 +29,25 @@ function mkdirp(path) {
       }
     }
   })
+}
+
+function rmrf(dir){
+  return statAsync(dir)
+    .then(statRes => {
+      if(!statRes.isDirectory()){
+        return unlinAsync(dir);
+      }
+      return readdirAsync(dir)
+        .then(entries => {
+          let p = Promise.resolve();
+          entries.forEach(e => p = p.then(() => rmrf(join(dir, e))));
+          return p.then(() => rmdirAsync(dir));
+        })
+    })
+    .catch(err => {
+      if(err.code !== 'ENOENT') // do not throw if what we're trying to remove doesn't exist
+        throw err;
+    })
 }
 
 function runCommand(command, args, cwd, env=undefined, verbose=true) {
@@ -123,6 +146,6 @@ module.exports = {
   log,
   download, upload,
   runCommand,
-  mkdirp,
+  mkdirp, rmrf,
   copyFileAsync, renameAsync
 }

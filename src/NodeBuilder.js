@@ -1,5 +1,5 @@
 
-const {log, download, upload, mkdirp, copyFileAsync, runCommand, renameAsync} = require('./util');
+const {log, download, upload, mkdirp, rmrf, copyFileAsync, runCommand, renameAsync} = require('./util');
 const {gzipSync, createGunzip} = require('zlib');
 const { join, dirname, basename, resolve } = require('path');
 const fs = require('fs');
@@ -132,6 +132,11 @@ class NodeJsBuilder {
     return copyFileAsync(origFile, origFile+'.bak');
   }
 
+  cleanupBuild() {
+    log(`cleaning up build dir=${this.nodeSrcDir}`);
+    return rmrf(this.nodeSrcDir);
+  }
+
   getPlaceholderContent(sizeMB) {
     const appMainCont = '~N~o~D~e~o~N~e~\n'.repeat(sizeMB*1024*1024/16);
     return Buffer.from(`'${appMainCont}'`);
@@ -186,6 +191,7 @@ class NodeJsBuilder {
       .then(() => !isWindows && runCommand(this.configure, [], this.nodeSrcDir))
       .then(() => runCommand(this.make, makeArgs, this.nodeSrcDir))
       .then(() => this.uploadNodeBinary())
+      .then(() => this.cleanupBuild())
       .then(() => {
         log(`RESULTS: ${this.resultFile}`);
         return this.resultFile;
