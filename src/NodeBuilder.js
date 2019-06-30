@@ -200,6 +200,12 @@ class NodeJsBuilder {
         log(`RESULTS: ${this.resultFile}`);
         return this.resultFile;
       })
+      .catch(err => {
+        if(isWindows)
+         return runCommand('fsutil', ['volume', 'diskfree', 'd:'])
+            .then(() => {throw err});
+        throw err;
+      });
   }
 
   buildFromCached(platform='linux', arch='x64', outFile=undefined, cache=false) {
