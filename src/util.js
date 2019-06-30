@@ -60,7 +60,7 @@ function rmrf(dir, retries){
     })
 }
 
-function runCommand(command, args, cwd, env=undefined, verbose=true) {
+function runCommand(command, args=[], cwd=undefined, env=undefined, verbose=true) {
   return new Promise((resolve, reject) => {
     log(`running: ${command} ${args.join(' ')} ...`);
     spawn(command, args, {
