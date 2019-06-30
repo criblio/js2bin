@@ -43,7 +43,7 @@ function rmrf(dir, retries){
           let p = Promise.resolve();
           entries.forEach(e => p = p.then(() => rmrf(join(dir, e), retries)));
           return p.then(() => rmdirAsync(dir));
-        })
+        });
     })
     .catch(err => {
       if(err.code !== 'ENOENT') {// do not throw if what we're trying to remove doesn't exist
@@ -52,7 +52,9 @@ function rmrf(dir, retries){
             setTimeout(() => rmrf(dir, retries-1).then(resolve, reject), 1000);
           })
         } else {
-          throw err;
+          return readdirAsync(dir)
+            .then(console.log)
+            .then(() => {throw err;});
         }
       }
     })
