@@ -187,6 +187,9 @@ class NodeJsBuilder {
   //5. kick off ./configure & build
   buildFromSource(){
     const makeArgs = isWindows ? ['nosign', 'release'] : [`-j${os.cpus().length}`];
+    if(isWindows) {
+      runCommand(['dir']);
+    }
     return this.downloadExpandNodeSource()
       .then(() => this.prepareNodeJsBuild())
       .then(() => !isWindows && runCommand(this.configure, [], this.nodeSrcDir))
