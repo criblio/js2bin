@@ -9,7 +9,7 @@ const fs = require('fs');
 const mkdirAsync = promisify(fs.mkdir);
 const copyFileAsync = promisify(fs.copyFile);
 const renameAsync = promisify(fs.rename);
-const statAsync = promisify(fs.stat);
+const statAsync = promisify(fs.lstat);
 const unlinkAsync = promisify(fs.unlink);
 const readdirAsync = promisify(fs.readdir);
 const rmdirAsync = promisify(fs.rmdir);
@@ -35,7 +35,7 @@ function rmrf(dir, retries){
   return statAsync(dir)
     .then(statRes => {
       if(!statRes.isDirectory()){
-        return unlinkAsync(dir);
+        return unlinkAsync(dir).catch(() => rmdirAsync(dir)); // windows, maybe a symlink to a dir?
       }
       console.log(`removing dir=${dir}, retries=${retries}`);
       return readdirAsync(dir)
