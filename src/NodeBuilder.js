@@ -59,10 +59,10 @@ class NodeJsBuilder {
     this.make = isWindows ? 'vcbuild.bat' : isBsd ? 'gmake' : 'make';
     this.configure = isWindows ? 'configure' : './configure';
     this.srcDir = join(__dirname);
-    this.buildDir = join(cwd || os.cwd(), 'build');
+    this.buildDir = join(cwd || process.cwd(), 'build');
     this.nodeSrcFile = join(this.buildDir, `node-v${version}.tar.gz`);
     this.nodeSrcDir = join(this.buildDir, `node-v${version}`);
-    this.cacheDir = join(cwd || os.cwd(), 'cache');
+    this.cacheDir = join(cwd || process.cwd(), 'cache');
     this.resultFile = isWindows ? join(this.nodeSrcDir, 'Release', 'node.exe') : join(this.nodeSrcDir, 'out', 'Release', 'node');
     this.placeHolderSizeMB = -1;
   }

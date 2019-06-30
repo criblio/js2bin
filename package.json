@@ -29,5 +29,8 @@
   },
   "bin": {
     "js2bin": "js2bin.js"
+  },
+  "engines": {
+    "node": ">=8"
   }
 }
