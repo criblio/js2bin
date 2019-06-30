@@ -42,7 +42,7 @@ function buildName(platform, arch, placeHolderSizeMB, version) {
 
 class NodeJsBuilder {
 
-  constructor(version, mainAppFile, appName) {
+  constructor(cwd, version, mainAppFile, appName) {
     this.version = version;
     this.appFile = resolve(mainAppFile);
     this.appName = appName;
@@ -59,9 +59,10 @@ class NodeJsBuilder {
     this.make = isWindows ? 'vcbuild.bat' : isBsd ? 'gmake' : 'make';
     this.configure = isWindows ? 'configure' : './configure';
     this.srcDir = join(__dirname);
-    this.nodeSrcFile = join('build', `node-v${version}.tar.gz`);
-    this.nodeSrcDir = join('build', `node-v${version}`);
-    this.cacheDir = 'cache';
+    this.buildDir = join(cwd || os.cwd(), 'build');
+    this.nodeSrcFile = join(this.buildDir, `node-v${version}.tar.gz`);
+    this.nodeSrcDir = join(this.buildDir, `node-v${version}`);
+    this.cacheDir = join(cwd || os.cwd(), 'cache');
     this.resultFile = isWindows ? join(this.nodeSrcDir, 'Release', 'node.exe') : join(this.nodeSrcDir, 'out', 'Release', 'node');
     this.placeHolderSizeMB = -1;
   }
@@ -198,7 +199,7 @@ class NodeJsBuilder {
       })
   }
 
-  buildFromCached(platform='linux', arch='x64', outFile=undefined) {
+  buildFromCached(platform='linux', arch='x64', outFile=undefined, cache=false) {
     const mainAppFileCont = this.getAppContentToBundle();
     this.placeHolderSizeMB = Math.ceil(mainAppFileCont.length/1024/1024); // 2, 4, 6, 8...
     if(this.placeHolderSizeMB % 2 !== 0) {
@@ -211,8 +212,11 @@ class NodeJsBuilder {
 
         outFile = resolve(outFile || `app-${platform}-${arch}-${this.version}`);
         const execFileCont = fs.readFileSync(cachedFile);
+        if(!cache){
+          fs.unlinkSync(cachedFile);
+        } 
+
         const placeholderIdx = execFileCont.indexOf(placeholder);
-    
         if(placeholderIdx < 0) {
           throw new Error(`Could not find placeholder in file=${cachedFile}`);
         }

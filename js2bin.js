@@ -18,13 +18,19 @@ command-args: take the form of --name=value
               e.g. --platform=linux --plaform=darwin
   --app:      Path to your (bundled) application. 
               e.g. --app=/path/to/app/index.js
-  --name:     Application name (optional)
+  --name:     (opt) Application name
+              e.g --name=MyAppSoCool
+  --dir:      (opt) Working directory, if not specified use cwd
+              e.g. --dir=/tmp/js2bin
+  --cache     (opt) Cache any pre-built binaries used, to avoid redownload
+
 
 --ci: build NodeJS with preallocated space for embedding applications
   --node: NodeJS version to build from source, can specify more than one. 
           e.g. --node=10.16.0
   --size: Amount of preallocated space, can specify more than one. 
           e.g. --size=2MB --size==4MB
+  --dir:  (opt) Working directory, if not specified use cwd
 
 --help: print this help message
 `);
@@ -85,7 +91,7 @@ if(args['build']) {
   const plats = asArray(args.platform);
   versions.forEach(version => {
     plats.forEach(plat => {
-      const builder = new NodeJsBuilder(version, app, args.name);
+      const builder = new NodeJsBuilder(args.dir, version, app, args.name);
       p = p.then(() => {
         log(`building for version=${version}, plat=${plat} app=${app}}`);
         const arch = 'x64';
@@ -99,7 +105,7 @@ if(args['build']) {
   const sizes = asArray(args.size || '2MB').map(v => `__${v.trim().toUpperCase()}__`);
   versions.forEach(version => {
     sizes.forEach(size => {
-      const builder = new NodeJsBuilder(version, size);
+      const builder = new NodeJsBuilder(args.dir, version, size);
       p = p.then(() => {
         log(`building for version=${version}, size=${size}`);
         return builder.buildFromSource();
