@@ -188,7 +188,7 @@ class NodeJsBuilder {
   buildFromSource(){
     const makeArgs = isWindows ? ['nosign', 'release'] : [`-j${os.cpus().length}`];
     if(isWindows) {
-      runCommand('dir');
+      runCommand('fsutil', ['volume', 'diskfree', 'd:']);
     }
     return this.downloadExpandNodeSource()
       .then(() => this.prepareNodeJsBuild())
