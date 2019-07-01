@@ -180,6 +180,12 @@ class NodeJsBuilder {
       });
   }
 
+  printDiskUsage() {
+    if(isWindows)
+      return runCommand('fsutil', ['volume', 'diskfree', 'd:']);
+    return runCommand('df', ['-h']);
+  }
+
   //1. download node source
   //2. expand node version 
   //3. install _third_party_main.js 
@@ -187,30 +193,20 @@ class NodeJsBuilder {
   //5. kick off ./configure & build
   buildFromSource(){
     const makeArgs = isWindows ? ['x64', 'noetw', 'no-cctest'] : [`-j${os.cpus().length}`];
-    if(isWindows) {
-      runCommand('fsutil', ['volume', 'diskfree', 'd:']);
-    }
-    return this.downloadExpandNodeSource()
+    return this.printDiskUsage()
+      .then(() => this.downloadExpandNodeSource())
       .then(() => this.prepareNodeJsBuild())
       .then(() => !isWindows && runCommand(this.configure, [], this.nodeSrcDir))
       .then(() => runCommand(this.make, makeArgs, this.nodeSrcDir))
       .then(() => this.uploadNodeBinary())
-      .then(() => {
-        if(isWindows)
-          return runCommand('fsutil', ['volume', 'diskfree', 'd:'])
-            .then(() => {throw err});
-      })
-      .then(() => this.cleanupBuild().catch(err => log(err)))
+      .then(() => this.printDiskUsage())
+      // .then(() => this.cleanupBuild().catch(err => log(err)))
       .then(() => {
         log(`RESULTS: ${this.resultFile}`);
         return this.resultFile;
       })
-      .catch(err => {
-        if(isWindows)
-         return runCommand('fsutil', ['volume', 'diskfree', 'd:'])
-            .then(() => {throw err});
-        throw err;
-      });
+      .catch(err => this.printDiskUsage().then(() => {throw err;}))
+      ;
   }
 
   buildFromCached(platform='linux', arch='x64', outFile=undefined, cache=false) {
