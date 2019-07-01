@@ -195,6 +195,11 @@ class NodeJsBuilder {
       .then(() => !isWindows && runCommand(this.configure, [], this.nodeSrcDir))
       .then(() => runCommand(this.make, makeArgs, this.nodeSrcDir))
       .then(() => this.uploadNodeBinary())
+      .then(() => {
+        if(isWindows)
+          return runCommand('fsutil', ['volume', 'diskfree', 'd:'])
+            .then(() => {throw err});
+      })
       .then(() => this.cleanupBuild().catch(err => log(err)))
       .then(() => {
         log(`RESULTS: ${this.resultFile}`);
