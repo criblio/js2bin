@@ -104,15 +104,16 @@ if(args['build']) {
   const versions = asArray(args.node);
   const sizes = asArray(args.size || '2MB').map(v => `__${v.trim().toUpperCase()}__`);
   versions.forEach(version => {
-    let builder;
+    let lastBuilder;
     sizes.forEach(size => {
-      builder = new NodeJsBuilder(args.dir, version, size);
+      const builder = new NodeJsBuilder(args.dir, version, size);
+      lastBuilder = builder;
       p = p.then(() => {
         log(`building for version=${version}, size=${size}`);
         return builder.buildFromSource();
       });
     });
-    p = p.then(() => builder.cleanupBuild().catch(err => log(err)));
+    p = p.then(() => lastBuilder.cleanupBuild().catch(err => log(err)));
   });
 } else {
   return usage();
