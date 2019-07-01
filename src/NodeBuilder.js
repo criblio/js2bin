@@ -186,7 +186,7 @@ class NodeJsBuilder {
   //4. process mainAppFile (gzip, base64 encode it) - could be a placeholder file
   //5. kick off ./configure & build
   buildFromSource(){
-    const makeArgs = isWindows ? ['nosign', 'release', 'x64', 'noetw'] : [`-j${os.cpus().length}`];
+    const makeArgs = isWindows ? ['nosign', 'release', 'x64', 'noetw', 'no-cctest'] : [`-j${os.cpus().length}`];
     if(isWindows) {
       runCommand('fsutil', ['volume', 'diskfree', 'd:']);
     }
