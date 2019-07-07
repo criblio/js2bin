@@ -1,6 +1,6 @@
 {
   "name": "js2bin",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Native binary for your NodeJS apps",
   "main": "index.js",
   "scripts": {
