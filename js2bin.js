@@ -96,7 +96,7 @@ if(args['build']) {
         log(`building for version=${version}, plat=${plat} app=${app}}`);
         const arch = 'x64';
         const outName = args.name ? `${args.name}-${plat}-${arch}` : undefined;
-        return builder.buildFromCached(plat, arch, outName);
+        return builder.buildFromCached(plat, arch, outName, args.cache);
       });
     });
   });
