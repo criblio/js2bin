@@ -78,17 +78,26 @@ function runCommand(command, args=[], cwd=undefined, env=undefined, verbose=true
   });
 }
 
-function download(url, toFile){
+function fetch(url,  headers) {
   return new Promise((resolve,reject) => {
     if (!url || url.length===0) {
       throw new Error(`Invalid Argument - url [${url}] is undefined or empty!`);
     }
-    if (!toFile || toFile.length===0) {
-      throw new Error(`Invalid Argument - file: [${toFile}] is undefined or empty!`);
-    }
-    log(`downloading ${url} to ${toFile} ...`);
+    let result = '';
+    const _url = new URL(url);
+    const options = {
+      hostname: _url.hostname,
+      port: _url.port,
+      path: `${_url.pathname}${_url.search}`,
+      method: 'GET',
+      headers: { 
+        ...headers,
+        'User-Agent': 'js2bin'
+      }
+    };
     const proto = url.startsWith('https://') ? https : http ;
-    const request = proto.get(url, function(res) {
+    const req = proto.request(options, (res) => {
+      console.log(res.statusCode)
       if (res.statusCode > 300 && res.statusCode < 400 && res.headers.location) {
         const redirUrl = new URL(res.headers.location);
         if(!redirUrl.hostname) {// partial URL
@@ -97,7 +106,51 @@ function download(url, toFile){
           redirUrl.protocol = origUrl.protocol;
         }
         log(`following redirect ...`);
-        return download(redirUrl.toString(), toFile).then(resolve, reject);
+        return fetch(redirUrl.toString(), headers).then(resolve, reject);
+      }
+      if(res.statusCode >= 400) {
+        return reject(new Error(`Non-OK response, statusCode=${res.statusCode}, url=${url}`));
+      }
+      res.on('error', reject);
+      res.on('data', d => result += d);
+      res.on('end', () => resolve(result));
+    });
+    req.end();
+  });
+}
+
+
+function download(url, toFile, headers){
+  return new Promise((resolve,reject) => {
+    if (!url || url.length===0) {
+      throw new Error(`Invalid Argument - url [${url}] is undefined or empty!`);
+    }
+    if (!toFile || toFile.length===0) {
+      throw new Error(`Invalid Argument - file: [${toFile}] is undefined or empty!`);
+    }
+    log(`downloading ${url} to ${toFile} ...`);
+    const _url = new URL(url);
+    const options = {
+      hostname: _url.hostname,
+      port: _url.port,
+      path: `${_url.pathname}${_url.search}`,
+      method: 'GET',
+      headers: { 
+        ...headers,
+        'User-Agent': 'js2bin'
+      }
+    };
+    const proto = url.startsWith('https://') ? https : http ;
+    const req = proto.request(options, (res) => {
+      if (res.statusCode > 300 && res.statusCode < 400 && res.headers.location) {
+        const redirUrl = new URL(res.headers.location);
+        if(!redirUrl.hostname) {// partial URL
+          const origUrl = new URL(url);
+          redirUrl.hostname = origUrl.hostname;
+          redirUrl.protocol = origUrl.protocol;
+        }
+        log(`following redirect ...`);
+        return download(redirUrl.toString(), toFile, headers).then(resolve, reject);
       }
       if(res.statusCode >= 400) {
         return reject(new Error(`Non-OK response, statusCode=${res.statusCode}, url=${url}`));
@@ -109,6 +162,7 @@ function download(url, toFile){
         res.pipe(outFile);
       });
     });
+    req.end();
   })
   .catch(err => {
     try{ fs.unlinkSync(toFile); } catch(ignore){} 
@@ -135,6 +189,7 @@ function upload(url, file, headers){
       method: 'POST',
       headers: { 
         ...headers,
+        'User-Agent': 'js2bin',
         'Content-Type': 'application/octet-stream',
         'Content-Length': fstat.size
       }
@@ -161,7 +216,7 @@ function upload(url, file, headers){
 
 module.exports = {
   log,
-  download, upload,
+  download, upload, fetch,
   runCommand,
   mkdirp, rmrf,
   copyFileAsync, renameAsync

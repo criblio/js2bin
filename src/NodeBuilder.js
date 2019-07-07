@@ -1,10 +1,11 @@
 
-const {log, download, upload, mkdirp, rmrf, copyFileAsync, runCommand, renameAsync} = require('./util');
+const {log, download, upload, fetch, mkdirp, rmrf, copyFileAsync, runCommand, renameAsync} = require('./util');
 const {gzipSync, createGunzip} = require('zlib');
 const { join, dirname, basename, resolve } = require('path');
 const fs = require('fs');
 const os = require('os');
-const tar = require('tar-fs')
+const tar = require('tar-fs');
+const pkg = require('../package.json');
 
 const isWindows = process.platform === 'win32';
 
@@ -92,14 +93,13 @@ class NodeJsBuilder {
   downloadCachedBuild(platform, arch, placeHolderSizeMB) {
     placeHolderSizeMB = placeHolderSizeMB || this.placeHolderSizeMB;
     const name = buildName(platform, arch, placeHolderSizeMB, this.version);
-    //TODO:
-    const baseUrl = 'https://github.com/criblio/js2bin/releases/download/v0.01/';
-    const url = `${baseUrl}${name}`;
     const filename = join(this.cacheDir, name);
     if(fs.existsSync(filename)) {
       log(`build name=${name} already downloaded, using it`);
       return Promise.resolve(filename);
     }
+    const baseUrl = `https://github.com/criblio/js2bin/releases/download/v${pkg.version}/`;
+    const url = `${baseUrl}${name}`;
     return download(url, filename)
   }
 
@@ -109,12 +109,17 @@ class NodeJsBuilder {
       const platform = prettyPlatform[process.platform];
       name = buildName(platform, arch, this.placeHolderSizeMB, this.version);
     }
-    //TODO:
-    const baseUrl = 'https://uploads.github.com/repos/criblio/js2bin/releases/18154804/assets';
-    const url = `${baseUrl}?name=${encodeURIComponent(name)}`;
-    return upload(url, this.resultFile, {
-      Authorization: 'token ' + process.env.GITHUB_TOKEN,
-    });
+
+    // now upload to release
+    return fetch(`https://api.github.com/repos/criblio/js2bin/releases/tags/v${pkg.version}`)
+      .then(JSON.parse)
+      .then(p => p.upload_url.split('{')[0])
+      .then(baseUrl => {
+        const url = `${baseUrl}?name=${encodeURIComponent(name)}`;
+        return upload(url, this.resultFile, {
+          Authorization: 'token ' + process.env.GITHUB_TOKEN,
+        });
+      });
   }
 
   nodePath(...pathSegments) {
