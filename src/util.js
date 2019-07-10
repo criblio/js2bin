@@ -4,6 +4,7 @@ const { spawn } = require('child_process');
 const { join, dirname, basename, resolve } = require('path');
 const {promisify} = require('util');
 const fs = require('fs');
+const { URL } = require('url');
 
 
 const mkdirAsync = promisify(fs.mkdir);
@@ -220,4 +221,5 @@ module.exports = {
   runCommand,
   mkdirp, rmrf,
   copyFileAsync, renameAsync
-}
+};
+
