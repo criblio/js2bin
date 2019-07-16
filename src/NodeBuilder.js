@@ -103,15 +103,25 @@ class NodeJsBuilder {
     return download(url, filename)
   }
 
-  uploadNodeBinary(name) {
+  uploadNodeBinary(name, upload, cache) {
+    if(!upload && !cache) return Promise.resolve();
     if(!name) {
       const arch = process.arch in prettyArch ? prettyArch[process.arch] : process.arch;
       const platform = prettyPlatform[process.platform];
       name = buildName(platform, arch, this.placeHolderSizeMB, this.version);
     }
 
+    let p = Promise.resolve()
+    if(cache) {
+      p = mkdirp(this.cacheDir)
+        .then(() => copyFileAsync(this.resultFile, join(this.cacheDir, name)));
+    }
+
+    if(!upload) return p;
+
     // now upload to release
-    return fetch(`https://api.github.com/repos/criblio/js2bin/releases/tags/v${pkg.version}`)
+    return p
+      .then(() => fetch(`https://api.github.com/repos/criblio/js2bin/releases/tags/v${pkg.version}`))
       .then(JSON.parse)
       .then(p => p.upload_url.split('{')[0])
       .then(baseUrl => {
@@ -196,14 +206,14 @@ class NodeJsBuilder {
   //3. install _third_party_main.js 
   //4. process mainAppFile (gzip, base64 encode it) - could be a placeholder file
   //5. kick off ./configure & build
-  buildFromSource(){
+  buildFromSource(upload, cache){
     const makeArgs = isWindows ? ['x64', 'noetw', 'no-cctest'] : [`-j${os.cpus().length}`];
     return this.printDiskUsage()
       .then(() => this.downloadExpandNodeSource())
       .then(() => this.prepareNodeJsBuild())
       .then(() => !isWindows && runCommand(this.configure, [], this.nodeSrcDir))
       .then(() => runCommand(this.make, makeArgs, this.nodeSrcDir))
-      .then(() => this.uploadNodeBinary())
+      .then(() => this.uploadNodeBinary(undefined, upload, cache))
       .then(() => this.printDiskUsage())
       // .then(() => this.cleanupBuild().catch(err => log(err)))
       .then(() => {

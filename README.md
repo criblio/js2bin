@@ -41,6 +41,16 @@ js2bin --build --platform=darwin --platform=linux --node=10.16.0 --app=/path/to/
 ```
 this will create 2 files named `CoolAppName-darwin-x64` and `CoolAppName-linux-x64` on your current working directory - if you're on Mac  or Linux you'll be able to execute either of them. Go ahead try it!
 
+## Build for your version of Node
+In case where you want to build for a version of Node for which a prebuild binary does not exist you'll need to follow a 2 step process
+1. create a build with a placeholder (this will download NodeJS source, build it locally and add the build to the local cache)
+```
+js2bin --ci --cache --node=10.13.0 --size=2MB
+```
+2. bundle your application into the just built binary
+```
+js2bin --build --cache --node=10.13.0 --app=/path/to/my/app.js --name=CoolAppName
+```
 
 # CLI Options
 
@@ -55,12 +65,20 @@ this will create 2 files named `CoolAppName-darwin-x64` and `CoolAppName-linux-x
   --app:      Path to your (bundled) application. 
               e.g. --app=/path/to/app/index.js
   --name:     Application name (optional)
+  --dir:      (opt) Working directory, if not specified use cwd
+              e.g. --dir=/tmp/js2bin
+  --cache     (opt) Cache any pre-built binaries used, to avoid redownload
 
 --ci: build NodeJS with preallocated space for embedding applications
   --node: NodeJS version to build from source, can specify more than one. 
           e.g. --node=10.16.0
   --size: Amount of preallocated space, can specify more than one. 
           e.g. --size=2MB --size==4MB
+  --dir:    (opt) Working directory, if not specified use cwd
+  --cache:  (opt) whether to keep build in the cache (to be reused by --build)
+  --upload: (opt) whether to upload node build to github releases
+  --clean:  (opt) whether to clean up after the build
+
 
 ```
 

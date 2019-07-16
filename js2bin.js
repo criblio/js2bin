@@ -30,7 +30,10 @@ command-args: take the form of --name=value
           e.g. --node=10.16.0
   --size: Amount of preallocated space, can specify more than one. 
           e.g. --size=2MB --size==4MB
-  --dir:  (opt) Working directory, if not specified use cwd
+  --dir:    (opt) Working directory, if not specified use cwd
+  --cache:  (opt) whether to keep build in the cache (to be reused by --build)
+  --upload: (opt) whether to upload node build to github releases
+  --clean:  (opt) whether to clean up after the build
 
 --help: print this help message
 `);
@@ -110,10 +113,11 @@ if(args['build']) {
       lastBuilder = builder;
       p = p.then(() => {
         log(`building for version=${version}, size=${size}`);
-        return builder.buildFromSource();
+        return builder.buildFromSource(args.upload, args.cache);
       });
     });
-    p = p.then(() => lastBuilder.cleanupBuild().catch(err => log(err)));
+    if(args.clean)
+      p = p.then(() => lastBuilder.cleanupBuild().catch(err => log(err)));
   });
 } else {
   return usage();
