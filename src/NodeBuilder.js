@@ -103,8 +103,8 @@ class NodeJsBuilder {
     return download(url, filename)
   }
 
-  uploadNodeBinary(name, upload, cache) {
-    if(!upload && !cache) return Promise.resolve();
+  uploadNodeBinary(name, uploadBuild, cache) {
+    if(!uploadBuild && !cache) return Promise.resolve();
     if(!name) {
       const arch = process.arch in prettyArch ? prettyArch[process.arch] : process.arch;
       const platform = prettyPlatform[process.platform];
@@ -117,7 +117,7 @@ class NodeJsBuilder {
         .then(() => copyFileAsync(this.resultFile, join(this.cacheDir, name)));
     }
 
-    if(!upload) return p;
+    if(!uploadBuild) return p;
 
     // now upload to release
     return p
@@ -206,14 +206,14 @@ class NodeJsBuilder {
   //3. install _third_party_main.js 
   //4. process mainAppFile (gzip, base64 encode it) - could be a placeholder file
   //5. kick off ./configure & build
-  buildFromSource(upload, cache){
+  buildFromSource(uploadBuild, cache){
     const makeArgs = isWindows ? ['x64', 'noetw', 'no-cctest'] : [`-j${os.cpus().length}`];
     return this.printDiskUsage()
       .then(() => this.downloadExpandNodeSource())
       .then(() => this.prepareNodeJsBuild())
       .then(() => !isWindows && runCommand(this.configure, [], this.nodeSrcDir))
       .then(() => runCommand(this.make, makeArgs, this.nodeSrcDir))
-      .then(() => this.uploadNodeBinary(undefined, upload, cache))
+      .then(() => this.uploadNodeBinary(undefined, uploadBuild, cache))
       .then(() => this.printDiskUsage())
       // .then(() => this.cleanupBuild().catch(err => log(err)))
       .then(() => {
