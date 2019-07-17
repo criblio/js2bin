@@ -155,7 +155,7 @@ class NodeJsBuilder {
 
   getPlaceholderContent(sizeMB) {
     const appMainCont = '~N~o~D~e~o~N~e~\n'.repeat(sizeMB*1024*1024/16);
-    return Buffer.from(`'${appMainCont}'`);
+    return Buffer.from('`' + appMainCont + '`');
   }
 
   getAppContentToBundle() {
