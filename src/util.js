@@ -110,7 +110,9 @@ function fetch(url,  headers) {
         return fetch(redirUrl.toString(), headers).then(resolve, reject);
       }
       if(res.statusCode >= 400) {
-        return reject(new Error(`Non-OK response, statusCode=${res.statusCode}, url=${url}`));
+        res.on('data', d => result += d);
+        res.on('end', () => reject(new Error(`Non-OK response, statusCode=${res.statusCode}, url=${url}, response=${d}`)));
+        return;
       }
       res.on('error', reject);
       res.on('data', d => result += d);
