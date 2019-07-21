@@ -120,15 +120,16 @@ class NodeJsBuilder {
     if(!uploadBuild) return p;
 
     // now upload to release
+    const headers = {
+      Authorization: 'token ' + process.env.GITHUB_TOKEN,
+    };
     return p
-      .then(() => fetch(`https://api.github.com/repos/criblio/js2bin/releases/tags/v${pkg.version}`))
+      .then(() => fetch(`https://api.github.com/repos/criblio/js2bin/releases/tags/v${pkg.version}`, headers))
       .then(JSON.parse)
       .then(p => p.upload_url.split('{')[0])
       .then(baseUrl => {
         const url = `${baseUrl}?name=${encodeURIComponent(name)}`;
-        return upload(url, this.resultFile, {
-          Authorization: 'token ' + process.env.GITHUB_TOKEN,
-        });
+        return upload(url, this.resultFile, headers);
       });
   }
 
