@@ -8,6 +8,7 @@ const tar = require('tar-fs');
 const pkg = require('../package.json');
 
 const isWindows = process.platform === 'win32';
+const isDarwin = process.platform === 'darwin';
 
 
 const prettyPlatform = {
@@ -209,10 +210,11 @@ class NodeJsBuilder {
   //5. kick off ./configure & build
   buildFromSource(uploadBuild, cache){
     const makeArgs = isWindows ? ['x64', 'noetw', 'no-cctest'] : [`-j${os.cpus().length}`];
+    const configArgs = isDarwin ? [] : ['--partly-static'];
     return this.printDiskUsage()
       .then(() => this.downloadExpandNodeSource())
       .then(() => this.prepareNodeJsBuild())
-      .then(() => !isWindows && runCommand(this.configure, [], this.nodeSrcDir))
+      .then(() => !isWindows && runCommand(this.configure, configArgs, this.nodeSrcDir))
       .then(() => runCommand(this.make, makeArgs, this.nodeSrcDir))
       .then(() => this.uploadNodeBinary(undefined, uploadBuild, cache))
       .then(() => this.printDiskUsage())
