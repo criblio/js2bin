@@ -25,9 +25,9 @@ jobs:
     displayName: Install Node
     inputs:
       versionSpec: '10.x'
-  - script: sudo apt-get update && sudo apt-get install -y gcc-4.9 g++-4.9
-    condition: contains(variables['Agent.JobName'], 'linux')
-    displayName: Install Linux build dependencies
+  # - script: sudo apt-get update && sudo apt-get install -y gcc-4.9 g++-4.9
+  #   condition: contains(variables['Agent.JobName'], 'linux')
+  #   displayName: Install Linux build dependencies
   - script: choco install visualcpp-build-tools --version 14.0.25420.1 -fy && npm config set msvs_version 2015
     condition: contains(variables['Agent.JobName'], 'windows_2015')
     displayName: Install Windows build dependencies
@@ -36,7 +36,7 @@ jobs:
     condition: contains(variables['Agent.JobName'], 'windows')
   - script: npm ci
     displayName: Install dependencies
-  - script: node js2bin.js --ci --node=12.6.0 --node=10.16.0 --size=2MB --size=4MB --upload --clean
+  - script: node js2bin.js --ci --node=10.16.0 --node=10.16.2 --node=12.8.0  --size=2MB --size=4MB --upload --clean
     displayName: Build base node binaries
     env:
       GITHUB_TOKEN: $(PersonalGithubToken)
