@@ -211,7 +211,7 @@ class NodeJsBuilder {
       .then(() => runCommand(
         'docker', ['run', 
         '-v', `${process.cwd()}:/js2bin/`,
-        '-it', containerTag,
+        '-t', containerTag,
         '/bin/bash', '-c',
         `source /opt/rh/devtoolset-7/enable && source /opt/rh/python27/enable && cd /js2bin && npm install && ./js2bin.js --ci --node=${this.version}`
         ]
