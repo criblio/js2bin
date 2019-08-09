@@ -2,6 +2,7 @@
 const {log, download, upload, fetch, mkdirp, rmrf, copyFileAsync, runCommand, renameAsync} = require('./util');
 const {gzipSync, createGunzip} = require('zlib');
 const { join, dirname, basename, resolve } = require('path');
+const { execSync } = require('child_process');
 const fs = require('fs');
 const os = require('os');
 const tar = require('tar-fs');
@@ -203,6 +204,20 @@ class NodeJsBuilder {
     return runCommand('df', ['-h']);
   }
 
+  buildInContainer() {
+    const containerTag = 'centos-6-build'
+    return runCommand('docker', ['build', '-t', containerTag, '-f', 'Dockerfile.centos6', '.'])
+     //docker run -v /home/ec2-user/js2bin-master/:/js2bin/ -it centosbuild /bin/bash -c 'source /opt/rh/devtoolset-7/enable && source /opt/rh/python27/enable && cd js2bin && npm install && ./js2bin.js --ci --cache --node=12.8.0'
+      .then(() => runCommand(
+        'docker', ['run', 
+        '-v', `${process.cwd()}:/js2bin/`,
+        '-it', containerTag,
+        '/bin/bash', '-c',
+        `source /opt/rh/devtoolset-7/enable && source /opt/rh/python27/enable && cd /js2bin && npm install && ./js2bin.js --ci --node=${this.version}`
+        ]
+      ))
+  }
+
   //1. download node source
   //2. expand node version 
   //3. install _third_party_main.js 
@@ -210,12 +225,26 @@ class NodeJsBuilder {
   //5. kick off ./configure & build
   buildFromSource(uploadBuild, cache){
     const makeArgs = isWindows ? ['x64', 'noetw', 'no-cctest'] : [`-j${os.cpus().length}`];
-    const configArgs = isDarwin ? [] : ['--partly-static'];
+    const configArgs = isDarwin ? [] : [];
     return this.printDiskUsage()
       .then(() => this.downloadExpandNodeSource())
       .then(() => this.prepareNodeJsBuild())
-      .then(() => !isWindows && runCommand(this.configure, configArgs, this.nodeSrcDir))
-      .then(() => runCommand(this.make, makeArgs, this.nodeSrcDir))
+      .then(() => {
+        if(isWindows)
+          return runCommand(this.make, makeArgs, this.nodeSrcDir);
+        if(isDarwin) {
+          return runCommand(this.configure, configArgs, this.nodeSrcDir) 
+            .then(() => runCommand(this.make, makeArgs, this.nodeSrcDir))
+        }
+
+        // check to see if the system we're running on is old enough - if not use a container build
+        const lddVersion = execSync('ldd --version').toString();
+        if(lddVersion.indexOf('ldd (GNU libc) 2.12') > -1) {
+          return runCommand(this.configure, configArgs, this.nodeSrcDir) 
+            .then(() => runCommand(this.make, makeArgs, this.nodeSrcDir))
+        }
+        return this.buildInContainer()
+      })
       .then(() => this.uploadNodeBinary(undefined, uploadBuild, cache))
       .then(() => this.printDiskUsage())
       // .then(() => this.cleanupBuild().catch(err => log(err)))
