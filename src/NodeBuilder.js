@@ -169,7 +169,6 @@ class NodeJsBuilder {
   prepareNodeJsBuild() {
     // install _third_party_main.js
     // install app_main.js
-    // update node.gyp
     const nodeGypPath = this.nodePath('node.gyp');
     const appMainPath = this.nodePath('lib', '_js2bin_app_main.js');
     return Promise.resolve()
@@ -185,16 +184,6 @@ class NodeJsBuilder {
         } else {
           fs.writeFileSync(appMainPath, this.getAppContentToBundle());
         }
-      })
-      .then(() => this.revertBackup(nodeGypPath))
-      .then(() => this.createBackup(nodeGypPath))
-      .then(() => {
-        const nodeGypCont = fs.readFileSync(nodeGypPath)
-          .toString().replace(/('lib\/sys.js',)/, "$1"
-          + "\n      'lib/_third_party_main.js'," 
-          + "\n      'lib/_js2bin_app_main.js',"
-        );
-        fs.writeFileSync(nodeGypPath, nodeGypCont);
       });
   }
 
@@ -224,8 +213,11 @@ class NodeJsBuilder {
   //4. process mainAppFile (gzip, base64 encode it) - could be a placeholder file
   //5. kick off ./configure & build
   buildFromSource(uploadBuild, cache){
-    const makeArgs = isWindows ? ['x64', 'noetw', 'no-cctest'] : [`-j${os.cpus().length}`];
-    const configArgs = isDarwin ? [] : [];
+    const mod1 = path.join('lib', '_third_party_main.js');
+    const mod2 = path.join('lib', '_js2bin_app_main.js');
+    const makeArgs = isWindows ? ['x64', 'noetw', 'no-cctest', 'link-module', mod1, 'link-module', mod2] : [`-j${os.cpus().length}`];
+    const configArgs = ['--link-module', mod1, '--link-module', mod2]
+     isDarwin ? [] : [];
     return this.printDiskUsage()
       .then(() => this.downloadExpandNodeSource())
       .then(() => this.prepareNodeJsBuild())
