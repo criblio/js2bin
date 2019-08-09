@@ -4,6 +4,7 @@ const {gzipSync, createGunzip} = require('zlib');
 const { join, dirname, basename, resolve } = require('path');
 const { execSync } = require('child_process');
 const fs = require('fs');
+const path = require('path');
 const os = require('os');
 const tar = require('tar-fs');
 const pkg = require('../package.json');
