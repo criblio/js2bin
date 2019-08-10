@@ -170,7 +170,6 @@ class NodeJsBuilder {
   prepareNodeJsBuild() {
     // install _third_party_main.js
     // install app_main.js
-    const nodeGypPath = this.nodePath('node.gyp');
     const appMainPath = this.nodePath('lib', '_js2bin_app_main.js');
     return Promise.resolve()
       .then(() => copyFileAsync(
@@ -203,7 +202,7 @@ class NodeJsBuilder {
         '-v', `${process.cwd()}:/js2bin/`,
         '-t', containerTag,
         '/bin/bash', '-c',
-        `source /opt/rh/devtoolset-7/enable && source /opt/rh/python27/enable && cd /js2bin && npm install && ./js2bin.js --ci --node=${this.version}`
+        `source /opt/rh/devtoolset-7/enable && source /opt/rh/python27/enable && cd /js2bin && npm install && ./js2bin.js --ci --node=${this.version} --size=${this.placeHolderSizeMB}MB`
         ]
       ))
   }
