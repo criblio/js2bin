@@ -232,10 +232,10 @@ class NodeJsBuilder {
         // check to see if the system we're running on is old enough - if not use a container build
         const lddVersion = execSync('ldd --version').toString();
         if(lddVersion.indexOf('ldd (GNU libc) 2.12') > -1) {
-          const cfgEnv = {...process.env};
-          cfgEnv.LDFLAGS = '-lrt'; // needed for node 12 to be compiled with this old compiler https://github.com/nodejs/node/issues/30077#issuecomment-574535342
-          return runCommand(this.configure, configArgs, this.nodeSrcDir, cfgEnv) 
-            .then(() => runCommand(this.make, makeArgs, this.nodeSrcDir))
+          const cfgMakeEnv = {...process.env};
+          cfgMakeEnv.LDFLAGS = '-lrt'; // needed for node 12 to be compiled with this old compiler https://github.com/nodejs/node/issues/30077#issuecomment-574535342
+          return runCommand(this.configure, configArgs, this.nodeSrcDir, cfgMakeEnv) 
+            .then(() => runCommand(this.make, makeArgs, this.nodeSrcDir, cfgMakeEnv))
         }
         return this.buildInContainer()
       })
