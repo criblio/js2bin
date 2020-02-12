@@ -27,8 +27,10 @@ source = parts[1];
 new Module(process.execPath, null)._compile(`
 
 // initialize clustering
-if (process.argv[1] && process.env.NODE_UNIQUE_ID) {
-   const cluster = require('cluster')
+const cluster = require('cluster');
+if (cluster.worker) {
+   // NOOP - cluster worker already initialized, likely Node 12.x+ 
+}else if (process.argv[1] && process.env.NODE_UNIQUE_ID) {
    cluster._setupWorker()
    delete process.env.NODE_UNIQUE_ID
 } else {
