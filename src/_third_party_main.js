@@ -26,6 +26,7 @@ source = parts[1];
 // that way the module is loaded exactly as it would by: node app_main.js
 const mod = new Module(process.execPath, null);
 mod.id = '.';              // main module 
+mod.filename = filename;   // dirname of this is used by require
 process.mainModule = mod;  // main module
 mod._compile(`
 
