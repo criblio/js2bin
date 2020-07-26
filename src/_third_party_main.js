@@ -24,7 +24,10 @@ source = parts[1];
 
 // here we turn what looks like an internal module to an non-internal one
 // that way the module is loaded exactly as it would by: node app_main.js
-new Module(process.execPath, null)._compile(`
+const mod = new Module(process.execPath, null);
+mod.id = '.';              // main module 
+process.mainModule = mod;  // main module
+mod._compile(`
 
 // initialize clustering
 const cluster = require('cluster');
