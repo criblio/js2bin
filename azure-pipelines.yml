@@ -3,6 +3,12 @@ jobs:
   timeoutInMinutes: 120
   strategy:
     matrix:
+      node_12_x:
+        nodeVersion: 12.x
+      node_13_x:
+        nodeVersion: 13.x
+      node_14_x:
+        nodeVersion: 14.x
       linux:
         imageName: 'ubuntu-16.04'
       mac:
@@ -24,7 +30,7 @@ jobs:
   - task: NodeTool@0
     displayName: Install Node
     inputs:
-      versionSpec: '10.x'
+      versionSpec: $(nodeVersion)
   # - script: sudo apt-get update && sudo apt-get install -y gcc-4.9 g++-4.9
   #   condition: contains(variables['Agent.JobName'], 'linux')
   #   displayName: Install Linux build dependencies
@@ -36,9 +42,7 @@ jobs:
     condition: contains(variables['Agent.JobName'], 'windows')
   - script: npm ci
     displayName: Install dependencies
-  - script: node js2bin.js --ci --node=12.18.4  --size=2MB --size=4MB --upload --clean
+  - script: node js2bin.js --ci --node=$(nodeVersion)  --size=2MB --size=4MB --upload --clean
     displayName: Build base node binaries
     env:
       GITHUB_TOKEN: $(PersonalGithubToken)
-
-
