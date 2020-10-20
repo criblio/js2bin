@@ -1,44 +1,11 @@
 jobs:
-- job: BuildBaseExe
-  timeoutInMinutes: 120
-  strategy:
-    matrix:
-      linux:
-        imageName: 'ubuntu-16.04'
-      mac:
-        imageName: 'macos-10.14'
-      windows_2017:
-        imageName: 'vs2017-win2016'
-      # windows_2015:
-      #   imageName: 'vs2017-win2016'
-#      alpine:
-#        imageName: 'ubuntu-16.04'
-  pool:
-    vmImage: $(imageName)
-  steps:
-  - task: UsePythonVersion@0
-    displayName: Setup Python
-    inputs:
-      versionSpec: '2.7'
-      architecture: 'x64'
-  - task: NodeTool@0
-    displayName: Install Node
-    inputs:
-      versionSpec: '10.x'
-  # - script: sudo apt-get update && sudo apt-get install -y gcc-4.9 g++-4.9
-  #   condition: contains(variables['Agent.JobName'], 'linux')
-  #   displayName: Install Linux build dependencies
-  - script: choco install visualcpp-build-tools --version 14.0.25420.1 -fy && npm config set msvs_version 2015
-    condition: contains(variables['Agent.JobName'], 'windows_2015')
-    displayName: Install Windows build dependencies
-  - script: choco install nasm -fy
-    displayName: Install Windows Assembler (NASM)
-    condition: contains(variables['Agent.JobName'], 'windows')
-  - script: npm ci
-    displayName: Install dependencies
-  - script: node js2bin.js --ci --node=12.18.4  --size=2MB --size=4MB --upload --clean
-    displayName: Build base node binaries
-    env:
-      GITHUB_TOKEN: $(PersonalGithubToken)
-
-
+- template: azure-pipelines-template.yml
+  parameters: 
+    nodeVersions: 
+      - 12.x
+      - 13.x
+      - 14.x
+    platforms: 
+      - ubuntu-16.04
+      - macos-10.14
+      - vs2017-win2016
