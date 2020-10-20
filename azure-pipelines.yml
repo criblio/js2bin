@@ -1,6 +1,12 @@
-parameters:
-    platform: ['ubuntu-16.04','macos-10.14', 'vs2017-win2016']
-    nodeVersion: ['12.x','13.x', '14.x']
+parameters: 
+    nodeVersion: 
+      - 12.x
+      - 13.x
+      - 14.x
+    platform: 
+      - ubuntu-16.04
+      - macos-10.14
+      - vs2017-win2016
 
 jobs:
   - ${{ each platform in parameters.platform }}:
