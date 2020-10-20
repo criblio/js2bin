@@ -1,5 +1,5 @@
 jobs:
-  - template: azure-pipelines-template.yml
+- template: azure-pipelines-template.yml
   parameters: 
     nodeVersions: 
       - 12.x
