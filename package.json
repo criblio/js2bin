@@ -4,6 +4,7 @@
   "description": "Native binary for your NodeJS apps",
   "main": "index.js",
   "scripts": {
+    "lint": "eslint .",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
@@ -25,7 +26,10 @@
   },
   "homepage": "https://github.com/criblio/js2bin#readme",
   "dependencies": {
-    "tar-fs": "^2.0.0"
+    "tar-fs": "^2.1.0"
+  },
+  "devDependencies": {
+    "eslint": "^7.11.0"
   },
   "bin": {
     "js2bin": "js2bin.js"
