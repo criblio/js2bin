@@ -1,7 +1,7 @@
 const http = require('http')
 const https = require('https');
 const { spawn } = require('child_process');
-const { join, dirname, basename, resolve } = require('path');
+const { join, dirname } = require('path');
 const {promisify} = require('util');
 const fs = require('fs');
 const { URL } = require('url');
@@ -168,7 +168,9 @@ function download(url, toFile, headers){
     req.end();
   })
   .catch(err => {
-    try{ fs.unlinkSync(toFile); } catch(ignore){} 
+    try{ fs.unlinkSync(toFile); } catch(ignore){
+      // fail through
+    } 
     throw err; 
   })
 }

@@ -273,7 +273,7 @@ class NodeJsBuilder {
         }
     
         execFileCont.fill(0, placeholderIdx, placeholderIdx + placeholder.length);
-        const bytesWritten = execFileCont.write(mainAppFileCont, placeholderIdx);
+        execFileCont.write(mainAppFileCont, placeholderIdx);
         log(`writing native binary ${outFile}`);
         return mkdirp(dirname(outFile))
           .then(() => fs.writeFileSync(outFile, execFileCont));
