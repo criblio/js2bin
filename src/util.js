@@ -1,11 +1,10 @@
-const http = require('http')
+const http = require('http');
 const https = require('https');
 const { spawn } = require('child_process');
 const { join, dirname } = require('path');
-const {promisify} = require('util');
+const { promisify } = require('util');
 const fs = require('fs');
 const { URL } = require('url');
-
 
 const mkdirAsync = promisify(fs.mkdir);
 const copyFileAsync = promisify(fs.copyFile);
@@ -21,21 +20,21 @@ function log() {
 
 function mkdirp(path) {
   return mkdirAsync(path).catch(err => {
-    if(err.code === 'ENOENT') {
+    if (err.code === 'ENOENT') {
       return mkdirp(dirname(path)).then(() => mkdirp(path));
     } else {
       const statRes = fs.statSync(path);
-      if(!statRes.isDirectory()) {
+      if (!statRes.isDirectory()) {
         throw err;
       }
     }
-  })
+  });
 }
 
-function rmrf(dir, retries){
+function rmrf(dir, retries) {
   return statAsync(dir)
     .then(statRes => {
-      if(!statRes.isDirectory()){
+      if (!statRes.isDirectory()) {
         return unlinkAsync(dir).catch(() => rmdirAsync(dir)); // windows, maybe a symlink to a dir?
       }
       console.log(`removing dir=${dir}, retries=${retries}`);
@@ -47,41 +46,41 @@ function rmrf(dir, retries){
         });
     })
     .catch(err => {
-      if(err.code !== 'ENOENT') {// do not throw if what we're trying to remove doesn't exist
-        if(retries > 0) {
+      if (err.code !== 'ENOENT') { // do not throw if what we're trying to remove doesn't exist
+        if (retries > 0) {
           return new Promise((resolve, reject) => {
-            setTimeout(() => rmrf(dir, retries-1).then(resolve, reject), 1000);
-          })
+            setTimeout(() => rmrf(dir, retries - 1).then(resolve, reject), 1000);
+          });
         } else {
           return readdirAsync(dir)
             .then(console.log)
-            .then(() => {throw err;});
+            .then(() => { throw err; });
         }
       }
-    })
+    });
 }
 
-function runCommand(command, args=[], cwd=undefined, env=undefined, verbose=true) {
+function runCommand(command, args = [], cwd = undefined, env = undefined, verbose = true) {
   return new Promise((resolve, reject) => {
     log(`running: ${command} ${args.join(' ')} ...`);
     spawn(command, args, {
       cwd,
-      env: env || {...process.env},
+      env: env || { ...process.env },
       stdio: verbose ? 'inherit' : 'ignore'
     })
-    .once('error', reject)
-    .once('close', (code) => {
-      if (code != 0) {
-        reject (new Error(`${command} ${args.join(' ')} exited with code: ${code}`));
-      }
-      resolve();
-    })
+      .once('error', reject)
+      .once('close', (code) => {
+        if (code !== 0) {
+          reject(new Error(`${command} ${args.join(' ')} exited with code: ${code}`));
+        }
+        resolve();
+      });
   });
 }
 
-function fetch(url,  headers) {
-  return new Promise((resolve,reject) => {
-    if (!url || url.length===0) {
+function fetch(url, headers) {
+  return new Promise((resolve, reject) => {
+    if (!url || url.length === 0) {
       throw new Error(`Invalid Argument - url [${url}] is undefined or empty!`);
     }
     let result = '';
@@ -91,25 +90,25 @@ function fetch(url,  headers) {
       port: _url.port,
       path: `${_url.pathname}${_url.search}`,
       method: 'GET',
-      headers: { 
+      headers: {
         ...headers,
         'User-Agent': 'js2bin'
       }
     };
-    const proto = url.startsWith('https://') ? https : http ;
+    const proto = url.startsWith('https://') ? https : http;
     const req = proto.request(options, (res) => {
-      console.log(res.statusCode)
+      console.log(res.statusCode);
       if (res.statusCode > 300 && res.statusCode < 400 && res.headers.location) {
         const redirUrl = new URL(res.headers.location);
-        if(!redirUrl.hostname) {// partial URL
+        if (!redirUrl.hostname) { // partial URL
           const origUrl = new URL(url);
           redirUrl.hostname = origUrl.hostname;
           redirUrl.protocol = origUrl.protocol;
         }
-        log(`following redirect ...`);
+        log('following redirect ...');
         return fetch(redirUrl.toString(), headers).then(resolve, reject);
       }
-      if(res.statusCode >= 400) {
+      if (res.statusCode >= 400) {
         res.on('data', d => result += d);
         res.on('end', () => reject(new Error(`Non-OK response, statusCode=${res.statusCode}, url=${url}, response=${result}`)));
         return;
@@ -122,13 +121,12 @@ function fetch(url,  headers) {
   });
 }
 
-
-function download(url, toFile, headers){
-  return new Promise((resolve,reject) => {
-    if (!url || url.length===0) {
+function download(url, toFile, headers) {
+  return new Promise((resolve, reject) => {
+    if (!url || url.length === 0) {
       throw new Error(`Invalid Argument - url [${url}] is undefined or empty!`);
     }
-    if (!toFile || toFile.length===0) {
+    if (!toFile || toFile.length === 0) {
       throw new Error(`Invalid Argument - file: [${toFile}] is undefined or empty!`);
     }
     log(`downloading ${url} to ${toFile} ...`);
@@ -138,24 +136,24 @@ function download(url, toFile, headers){
       port: _url.port,
       path: `${_url.pathname}${_url.search}`,
       method: 'GET',
-      headers: { 
+      headers: {
         ...headers,
         'User-Agent': 'js2bin'
       }
     };
-    const proto = url.startsWith('https://') ? https : http ;
+    const proto = url.startsWith('https://') ? https : http;
     const req = proto.request(options, (res) => {
       if (res.statusCode > 300 && res.statusCode < 400 && res.headers.location) {
         const redirUrl = new URL(res.headers.location);
-        if(!redirUrl.hostname) {// partial URL
+        if (!redirUrl.hostname) { // partial URL
           const origUrl = new URL(url);
           redirUrl.hostname = origUrl.hostname;
           redirUrl.protocol = origUrl.protocol;
         }
-        log(`following redirect ...`);
+        log('following redirect ...');
         return download(redirUrl.toString(), toFile, headers).then(resolve, reject);
       }
-      if(res.statusCode >= 400) {
+      if (res.statusCode >= 400) {
         return reject(new Error(`Non-OK response, statusCode=${res.statusCode}, url=${url}`));
       }
       res.on('error', reject);
@@ -167,23 +165,23 @@ function download(url, toFile, headers){
     });
     req.end();
   })
-  .catch(err => {
-    try{ fs.unlinkSync(toFile); } catch(ignore){
+    .catch(err => {
+      try { fs.unlinkSync(toFile); } catch (ignore) {
       // fail through
-    } 
-    throw err; 
-  })
+      }
+      throw err;
+    });
 }
 
-function upload(url, file, headers){
-  const  fileStream = fs.createReadStream(file);
-  return new Promise((resolve,reject) => {
+function upload(url, file, headers) {
+  const fileStream = fs.createReadStream(file);
+  return new Promise((resolve, reject) => {
     log(`uploading file=${file}, url=${url} ...`);
-    if (!url || url.length===0) {
+    if (!url || url.length === 0) {
       throw new Error(`Invalid Argument - url [${url}] is undefined or empty!`);
     }
     const fstat = fs.statSync(file);
-    if(!fstat.isFile()) {
+    if (!fstat.isFile()) {
       throw new Error(`Invalid Argument - file [${file}] must be a file`);
     }
     const _url = new URL(url);
@@ -192,38 +190,40 @@ function upload(url, file, headers){
       port: _url.port,
       path: `${_url.pathname}${_url.search}`,
       method: 'POST',
-      headers: { 
+      headers: {
         ...headers,
         'User-Agent': 'js2bin',
         'Content-Type': 'application/octet-stream',
         'Content-Length': fstat.size
       }
     };
-    const proto = url.startsWith('https://') ? https : http ;
+    const proto = url.startsWith('https://') ? https : http;
     const req = proto.request(options, (res) => {
       res.on('data', data => log(data.toString()));
       res.on('end', () => resolve());
     });
-    
+
     req.on('error', reject);
     // Write data to request body
     fileStream.pipe(req);
   })
-  .then(
-    () => fileStream.close(), 
-    err => {
-      fileStream.close();
-      throw err;
-    }
-  )
+    .then(
+      () => fileStream.close(),
+      err => {
+        fileStream.close();
+        throw err;
+      }
+    );
 }
-
 
 module.exports = {
   log,
-  download, upload, fetch,
+  download,
+  upload,
+  fetch,
   runCommand,
-  mkdirp, rmrf,
-  copyFileAsync, renameAsync
+  mkdirp,
+  rmrf,
+  copyFileAsync,
+  renameAsync
 };
-
