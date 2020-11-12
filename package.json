@@ -4,6 +4,7 @@
   "description": "Native binary for your NodeJS apps",
   "main": "index.js",
   "scripts": {
+    "ci": "node js2bin.js --ci --size=2MB --size=4MB --upload --clean",
     "lint": "eslint --fix .",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
@@ -26,6 +27,7 @@
   },
   "homepage": "https://github.com/criblio/js2bin#readme",
   "dependencies": {
+    "js2bin-version-info": "^1.0.0",
     "tar-fs": "^2.1.0"
   },
   "devDependencies": {

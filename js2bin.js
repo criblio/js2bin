@@ -1,11 +1,16 @@
 #!/usr/bin/env node
 
+'use strict';
+
 const { NodeJsBuilder } = require('./src/NodeBuilder');
+const { VersionInfo } = require('js2bin-version-info');
 const { log } = require('./src/util');
 const fs = require('fs');
 
 function usage(msg) {
-  if (msg) { console.log(`ERROR: ${msg}`); }
+  if (msg) {
+    console.log(`ERROR: ${msg}`);
+  }
   console.log(`usage: ${process.argv[1]} command <command-args>
 command: --build, --ci, --help
 command-args: take the form of --name=value
@@ -46,7 +51,6 @@ function parseArgs() {
     if (!arg.startsWith('--')) {
       return usage(`invalid argument: ${arg}`);
     }
-
     if (arg === '--help') {
       return usage();
     }
@@ -55,7 +59,11 @@ function parseArgs() {
     const name = parts[0];
     const value = parts.length === 1 ? true : parts[1];
     if (args[name] !== undefined) {
-      if (Array.isArray(args[name])) { args[name].push(value); } else { args[name] = [args[name], value]; }
+      if (Array.isArray(args[name])) {
+        args[name].push(value);
+      } else {
+        args[name] = [args[name], value];
+      }
     } else {
       args[name] = value;
     }
@@ -65,7 +73,6 @@ function parseArgs() {
   if (!args.build && !args.ci) {
     return usage('must use either --build or --ci');
   }
-  args.node = (args.node || '10.16.0');
   args.platform = (args.platform || NodeJsBuilder.platform());
   return args;
 }
@@ -74,45 +81,56 @@ function asArray(val) {
   return Array.isArray(val) ? val : [val];
 }
 
-const args = parseArgs();
-let p = Promise.resolve();
+(async () => {
+  const args = parseArgs();
+  let p = Promise.resolve();
 
-if (args.build) {
-  const app = args.app;
-  if (!app) usage('missing required arg: --app');
-  if (!fs.existsSync(app)) {
-    console.log(`ERROR: file not found: ${app}`);
-    process.exit(1);
+  if (args.build) {
+    const app = args.app;
+    if (!app) {
+      return usage('missing required arg: --app');
+    }
+    if (!fs.existsSync(app)) {
+      console.log(`ERROR: file not found: ${app}`);
+      process.exit(1);
+    }
+    const versions = asArray(args.node || await new VersionInfo().get('build'));
+    const plats = asArray(args.platform);
+    versions.forEach(version => {
+      plats.forEach(plat => {
+        const builder = new NodeJsBuilder(args.dir, version, app, args.name);
+        p = p.then(() => {
+          log(`building for version=${version}, plat=${plat} app=${app}}`);
+          const arch = 'x64';
+          const outName = args.name
+            ? `${args.name}-${plat}-${arch}`
+            : undefined;
+          return builder.buildFromCached(plat, arch, outName, args.cache);
+        });
+      });
+    });
+  } else if (args.ci) {
+    const versions = asArray(args.node || await new VersionInfo().get('ci'));
+    const sizes =
+      asArray(args.size || '2MB').map(v => `__${v.trim().toUpperCase()}__`);
+    versions.forEach(version => {
+      let lastBuilder;
+      sizes.forEach(size => {
+        const builder = new NodeJsBuilder(args.dir, version, size);
+        lastBuilder = builder;
+        p = p.then(() => {
+          log(`building for version=${version}, size=${size}`);
+          return builder.buildFromSource(args.upload, args.cache);
+        });
+      });
+      if (args.clean) {
+        p = p.then(() => lastBuilder.cleanupBuild().catch(err => log(err)));
+      }
+    });
+  } else {
+    return usage();
   }
-
-  const versions = asArray(args.node);
-  const plats = asArray(args.platform);
-  versions.forEach(version => {
-    plats.forEach(plat => {
-      const builder = new NodeJsBuilder(args.dir, version, app, args.name);
-      p = p.then(() => {
-        log(`building for version=${version}, plat=${plat} app=${app}}`);
-        const arch = 'x64';
-        const outName = args.name ? `${args.name}-${plat}-${arch}` : undefined;
-        return builder.buildFromCached(plat, arch, outName, args.cache);
-      });
-    });
-  });
-} else if (args.ci) {
-  const versions = asArray(args.node);
-  const sizes = asArray(args.size || '2MB').map(v => `__${v.trim().toUpperCase()}__`);
-  versions.forEach(version => {
-    let lastBuilder;
-    sizes.forEach(size => {
-      const builder = new NodeJsBuilder(args.dir, version, size);
-      lastBuilder = builder;
-      p = p.then(() => {
-        log(`building for version=${version}, size=${size}`);
-        return builder.buildFromSource(args.upload, args.cache);
-      });
-    });
-    if (args.clean) { p = p.then(() => lastBuilder.cleanupBuild().catch(err => log(err))); }
-  });
-} else {
-  usage();
-}
+})().catch(e => {
+  console.error(e);
+  process.exit(1);
+});
