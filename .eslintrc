@@ -1,0 +1,20 @@
+{
+  "env": {
+    "node": true,
+    "es6": true
+  },
+  "extends": [
+    "standard"
+  ],
+  "parserOptions": {
+    "ecmaVersion": 2019
+  },
+  "rules": {
+    "semi": ["error", "always"],
+    "space-before-function-paren": ["error", {
+      "anonymous": "always",
+      "asyncArrow": "always",
+      "named": "never"
+    }]
+  }
+}

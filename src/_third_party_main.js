@@ -3,16 +3,15 @@ const Module = require('module');
 const { gunzipSync } = require('zlib');
 const { join, dirname } = require('path');
 
-
-let source = process.binding('natives')['_js2bin_app_main'];
-if(source.startsWith("`~")) {
-  console.log(`js2bin binary with ${Math.floor(source.length/1024/1024)}MB of placeholder content.
+let source = process.binding('natives')._js2bin_app_main;
+if (source.startsWith('`~')) {
+  console.log(`js2bin binary with ${Math.floor(source.length / 1024 / 1024)}MB of placeholder content.
 For more info see: js2bin --help`);
   process.exit(-1);
 }
 
 const nullIdx = source.indexOf('\0');
-if(nullIdx > -1) {
+if (nullIdx > -1) {
   source = source.substr(0, nullIdx);
 }
 
@@ -25,9 +24,9 @@ source = parts[1];
 // here we turn what looks like an internal module to an non-internal one
 // that way the module is loaded exactly as it would by: node app_main.js
 const mod = new Module(process.execPath, null);
-mod.id = '.';              // main module 
-mod.filename = filename;   // dirname of this is used by require
-process.mainModule = mod;  // main module
+mod.id = '.'; // main module
+mod.filename = filename; // dirname of this is used by require
+process.mainModule = mod; // main module
 mod._compile(`
 
 // initialize clustering
@@ -44,4 +43,3 @@ if (cluster.worker) {
 ${gunzipSync(Buffer.from(source, 'base64')).toString()}
 
 `, filename);
-
