@@ -109,7 +109,6 @@ function asArray(val) {
         });
       });
     });
-    return p;
   } else if (args.ci) {
     const versions = asArray(args.node || await new VersionInfo().get('ci'));
     const sizes =
@@ -128,7 +127,6 @@ function asArray(val) {
         p = p.then(() => lastBuilder.cleanupBuild().catch(err => log(err)));
       }
     });
-    return p;
   } else {
     return usage();
   }
