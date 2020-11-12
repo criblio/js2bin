@@ -5,8 +5,7 @@ const { log } = require('./src/util');
 const fs = require('fs');
 
 function usage(msg) {
-  if(msg)
-    console.log(`ERROR: ${msg}`)
+  if (msg) { console.log(`ERROR: ${msg}`); }
   console.log(`usage: ${process.argv[1]} command <command-args>
 command: --build, --ci, --help
 command-args: take the form of --name=value
@@ -40,35 +39,31 @@ command-args: take the form of --name=value
   process.exit(1);
 }
 
-
 function parseArgs() {
   const args = {};
-  for(let i=2; i<process.argv.length; i++) {
+  for (let i = 2; i < process.argv.length; i++) {
     const arg = process.argv[i];
-    if(!arg.startsWith('--')) {
+    if (!arg.startsWith('--')) {
       return usage(`invalid argument: ${arg}`);
     }
 
-    if(arg === '--help'){
+    if (arg === '--help') {
       return usage();
     }
 
     const parts = arg.substr(2).split('=', 2);
     const name = parts[0];
     const value = parts.length === 1 ? true : parts[1];
-    if(args[name] !== undefined) {
-      if(Array.isArray(args[name])) 
-        args[name].push(value);
-      else
-        args[name] = [args[name], value]
+    if (args[name] !== undefined) {
+      if (Array.isArray(args[name])) { args[name].push(value); } else { args[name] = [args[name], value]; }
     } else {
       args[name] = value;
     }
   }
 
   // console.log(args);
-  if(!args['build'] && !args['ci']) {
-    return usage(`must use either --build or --ci`);
+  if (!args.build && !args.ci) {
+    return usage('must use either --build or --ci');
   }
   args.node = (args.node || '10.16.0');
   args.platform = (args.platform || NodeJsBuilder.platform());
@@ -82,10 +77,10 @@ function asArray(val) {
 const args = parseArgs();
 let p = Promise.resolve();
 
-if(args['build']) {
+if (args.build) {
   const app = args.app;
-  if(!app) return usage('missing required arg: --app');
-  if(!fs.existsSync(app)) {
+  if (!app) usage('missing required arg: --app');
+  if (!fs.existsSync(app)) {
     console.log(`ERROR: file not found: ${app}`);
     process.exit(1);
   }
@@ -103,7 +98,7 @@ if(args['build']) {
       });
     });
   });
-} else if(args['ci']){
+} else if (args.ci) {
   const versions = asArray(args.node);
   const sizes = asArray(args.size || '2MB').map(v => `__${v.trim().toUpperCase()}__`);
   versions.forEach(version => {
@@ -116,9 +111,8 @@ if(args['build']) {
         return builder.buildFromSource(args.upload, args.cache);
       });
     });
-    if(args.clean)
-      p = p.then(() => lastBuilder.cleanupBuild().catch(err => log(err)));
+    if (args.clean) { p = p.then(() => lastBuilder.cleanupBuild().catch(err => log(err))); }
   });
 } else {
-  return usage();
+  usage();
 }

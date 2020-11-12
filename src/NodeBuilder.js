@@ -211,7 +211,6 @@ class NodeJsBuilder {
     const mod2 = path.join('lib', '_js2bin_app_main.js');
     const makeArgs = isWindows ? ['x64', 'noetw', 'no-cctest', 'link-module', mod1, 'link-module', mod2] : [`-j${os.cpus().length}`];
     const configArgs = ['--link-module', mod1, '--link-module', mod2];
-    isDarwin ? [] : [];
     return this.printDiskUsage()
       .then(() => this.downloadExpandNodeSource())
       .then(() => this.prepareNodeJsBuild())
