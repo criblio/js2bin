@@ -4,7 +4,7 @@
   "description": "Native binary for your NodeJS apps",
   "main": "index.js",
   "scripts": {
-    "ci": "node js2bin.js --ci --size=2MB --size=4MB --upload --clean",
+    "deploy": "node js2bin.js --ci --size=2MB --size=4MB --upload --clean",
     "lint": "eslint --fix .",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
