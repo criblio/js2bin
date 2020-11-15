@@ -16,30 +16,31 @@ command: --build, --ci, --help
 command-args: take the form of --name=value
 
 --build: embed your application into the precompiled NodeJS binary.
-  --node:     NodeJS version(s) to use, can specify more than one. 
-              e.g. --node=10.16.0 --node=12.4.0
-  --platform: Platform(s) to build for, can specifiy more than one. 
+  --platform: Platform(s) to build for, can specifiy more than one.
               e.g. --platform=linux --plaform=darwin
   --app:      Path to your (bundled) application. 
               e.g. --app=/path/to/app/index.js
-  --name:     (opt) Application name
+  --node:     (opt) NodeJS version(s) to use, can specify more than one.
+              If not specified use the latest precompiled NodeJS binary.
+              e.g. --node=10.16.0 --node=12.4.0
+  --name:     (opt) Application name.
               e.g --name=MyAppSoCool
-  --dir:      (opt) Working directory, if not specified use cwd
+  --dir:      (opt) Working directory, if not specified use cwd.
               e.g. --dir=/tmp/js2bin
-  --cache     (opt) Cache any pre-built binaries used, to avoid redownload
+  --cache     (opt) Cache any pre-built binaries used, to avoid redownload.
 
 
---ci: build NodeJS with preallocated space for embedding applications
-  --node: NodeJS version to build from source, can specify more than one. 
-          e.g. --node=10.16.0
-  --size: Amount of preallocated space, can specify more than one. 
-          e.g. --size=2MB --size==4MB
-  --dir:    (opt) Working directory, if not specified use cwd
-  --cache:  (opt) whether to keep build in the cache (to be reused by --build)
-  --upload: (opt) whether to upload node build to github releases
-  --clean:  (opt) whether to clean up after the build
+--ci: build NodeJS with preallocated space for embedding applications.
+  --size:   Amount of preallocated space, can specify more than one.
+            e.g. --size=2MB --size==4MB
+  --node:   (opt) NodeJS version to build from source, can specify more than one.
+            e.g. --node=10.16.0
+  --dir:    (opt) Working directory, if not specified use cwd.
+  --cache:  (opt) Whether to keep build in the cache (to be reused by --build).
+  --upload: (opt) Whether to upload node build to github releases.
+  --clean:  (opt) Whether to clean up after the build.
 
---help: print this help message
+--help: print this help message.
 `);
   process.exit(1);
 }
