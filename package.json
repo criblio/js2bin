@@ -27,8 +27,8 @@
   },
   "homepage": "https://github.com/criblio/js2bin#readme",
   "dependencies": {
-    "js2bin-version-info": "^1.0.0",
-    "tar-fs": "^2.1.0"
+    "js2bin-version-info": "^1.0.1",
+    "tar-fs": "^2.1.1"
   },
   "devDependencies": {
     "eslint": "^7.13.0",
