@@ -1,12 +1,15 @@
 FROM centos:6
 
+# add centos6 vault based repos
+COPY centos6-repos/* /etc/yum.repos.d/
+
 RUN yum install -y centos-release-scl && \
     yum install -y devtoolset-7 python27 wget && \
-    wget -q https://nodejs.org/dist/v10.16.2/node-v10.16.2-linux-x64.tar.gz && \
-    tar -xf node-v10.16.2-linux-x64.tar.gz && \ 
-    rm node-v10.16.2-linux-x64.tar.gz && \
-    ln -s /node-v10.16.2-linux-x64/bin/node /bin/node && \ 
-    ln -s /node-v10.16.2-linux-x64/bin/npm /bin/npm 
+    wget -q https://nodejs.org/dist/v14.15.3/node-v14.15.3-linux-x64.tar.gz && \
+    tar -xf node-v14.15.3-linux-x64.tar.gz && \ 
+    rm node-v14.15.3-linux-x64.tar.gz && \
+    ln -s /node-v14.15.3-linux-x64/bin/node /bin/node && \ 
+    ln -s /node-v14.15.3-linux-x64/bin/npm /bin/npm 
 
 # before building using this container you need to enable the right slc toolchain ie
 # source /opt/rh/devtoolset-7/enable && source /opt/rh/python27/enable
