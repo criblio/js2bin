@@ -192,7 +192,7 @@ class NodeJsBuilder {
     return runCommand(
         'docker', ['run',
           '-v', `${process.cwd()}:/js2bin/`,
-          '-t', containerT`ag,
+          '-t', containerTag,
           '/bin/bash', '-c',
         `source /opt/rh/devtoolset-7/enable && source /opt/rh/python27/enable && cd /js2bin && npm install && ./js2bin.js --ci --node=${this.version} --size=${this.placeHolderSizeMB}MB`
         ]
