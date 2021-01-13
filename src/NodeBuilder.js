@@ -188,17 +188,15 @@ class NodeJsBuilder {
   }
 
   buildInContainer() {
-    const containerTag = 'centos-6-build';
-    return runCommand('docker', ['build', '-t', containerTag, '-f', 'Dockerfile.centos6', '.'])
-    // docker run -v /home/ec2-user/js2bin-master/:/js2bin/ -it centosbuild /bin/bash -c 'source /opt/rh/devtoolset-7/enable && source /opt/rh/python27/enable && cd js2bin && npm install && ./js2bin.js --ci --cache --node=12.8.0'
-      .then(() => runCommand(
+    const containerTag = 'cribl/js2bin-builder:latest';
+    return runCommand(
         'docker', ['run',
           '-v', `${process.cwd()}:/js2bin/`,
           '-t', containerTag,
           '/bin/bash', '-c',
         `source /opt/rh/devtoolset-7/enable && source /opt/rh/python27/enable && cd /js2bin && npm install && ./js2bin.js --ci --node=${this.version} --size=${this.placeHolderSizeMB}MB`
         ]
-      ));
+      );
   }
 
   // 1. download node source
