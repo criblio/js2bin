@@ -101,6 +101,7 @@ if (args.build) {
       });
     });
   });
+  p = p.catch(err => log(err));
 } else if (args.ci) {
   const versions = asArray(args.node);
   const archs = asArray(args.arch || 'x64');
@@ -119,6 +120,7 @@ if (args.build) {
     });
     if (args.clean) { p = p.then(() => lastBuilder.cleanupBuild().catch(err => log(err))); }
   });
+  p = p.catch(err => log(err));
 } else {
   usage();
 }

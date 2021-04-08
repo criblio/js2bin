@@ -4,13 +4,13 @@ jobs:
   strategy:
     matrix:
       linux_arm64:
-        imageName: 'ubuntu-16.04'
+        imageName: 'ubuntu-20.04'
         arch: 'linux/arm64'
       linux_amd64:
-        imageName: 'ubuntu-16.04'
+        imageName: 'ubuntu-20.04'
         arch: 'linux/amd64'
       linux_arm/v7:
-        imageName: 'ubuntu-16.04'
+        imageName: 'ubuntu-20.04'
         arch: 'linux/arm/v7'
       mac:
         imageName: 'macos-10.14'
