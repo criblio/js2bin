@@ -1,6 +1,6 @@
 jobs:
 - job: BuildBaseExe
-  timeoutInMinutes: 120
+  timeoutInMinutes: 0
   strategy:
     matrix:
       linux_arm64:
