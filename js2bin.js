@@ -113,7 +113,7 @@ if (args.build) {
         const builder = new NodeJsBuilder(args.dir, version, size);
         lastBuilder = builder;
         p = p.then(() => {
-          log(`building for version=${version}, size=${size}`);
+          log(`building for version=${version}, size=${size} arch=${arch}`);
           return builder.buildFromSource(args.upload, args.cache, args.container, arch);
         });
       })

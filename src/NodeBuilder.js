@@ -244,7 +244,7 @@ class NodeJsBuilder {
           return runCommand(this.configure, configArgs, this.nodeSrcDir, cfgMakeEnv)
             .then(() => runCommand(this.make, makeArgs, this.nodeSrcDir, cfgMakeEnv));
         }
-        if (arch !== 'x64') {
+        if (arch !== 'linux/amd64') {
           return this.buildInContainerNonX64(arch);
         }
         return this.buildInContainer();
