@@ -3,12 +3,15 @@ jobs:
   timeoutInMinutes: 120
   strategy:
     matrix:
-      linux/arm64:
+      linux_arm64:
         imageName: 'ubuntu-16.04'
-      linux/amd64:
+        arch: 'linux/arm64'
+      linux_amd64:
         imageName: 'ubuntu-16.04'
-      linux/arm/v7:
+        arch: 'linux/amd64'
+      linux_arm/v7:
         imageName: 'ubuntu-16.04'
+        arch: 'linux/arm/v7'
       mac:
         imageName: 'macos-10.14'
       windows_2017:
@@ -45,12 +48,11 @@ jobs:
     condition: contains(variables['Agent.JobName'], 'linux')
     env:
       GITHUB_TOKEN: $(PersonalGithubToken)
-      ARCH: $(Agent.JobName)
+      ARCH: $(arch)
   - script: node js2bin.js --ci --container=true --node=14.15.5 --size=2MB --size=4MB --upload --clean
     displayName: Build base node binaries
     condition: not(contains(variables['Agent.JobName'], 'linux'))
     env:
       GITHUB_TOKEN: $(PersonalGithubToken)
-      ARCH: $(Agent.JobName)
 
 
