@@ -29,10 +29,12 @@ command-args: take the form of --name=value
           e.g. --node=10.16.0
   --size: Amount of preallocated space, can specify more than one. 
           e.g. --size=2MB --size==4MB
-  --dir:    (opt) Working directory, if not specified use cwd
-  --cache:  (opt) whether to keep build in the cache (to be reused by --build)
-  --upload: (opt) whether to upload node build to github releases
-  --clean:  (opt) whether to clean up after the build
+  --dir:       (opt) Working directory, if not specified use cwd
+  --cache:     (opt) whether to keep build in the cache (to be reused by --build)
+  --upload:    (opt) whether to upload node build to github releases
+  --clean:     (opt) whether to clean up after the build
+  --container: (opt) build using builder container rather than local dev tools
+  --arch:      (opt) build on a specific architecture
 
 --help: print this help message
 `);
@@ -67,6 +69,7 @@ function parseArgs() {
   }
   args.node = (args.node || '10.16.0');
   args.platform = (args.platform || NodeJsBuilder.platform());
+  args.container = (args.container || false);
   return args;
 }
 
@@ -100,16 +103,19 @@ if (args.build) {
   });
 } else if (args.ci) {
   const versions = asArray(args.node);
+  const archs = asArray(args.arch || 'x64');
   const sizes = asArray(args.size || '2MB').map(v => `__${v.trim().toUpperCase()}__`);
   versions.forEach(version => {
     let lastBuilder;
     sizes.forEach(size => {
-      const builder = new NodeJsBuilder(args.dir, version, size);
-      lastBuilder = builder;
-      p = p.then(() => {
-        log(`building for version=${version}, size=${size}`);
-        return builder.buildFromSource(args.upload, args.cache);
-      });
+      archs.forEach(arch => {
+        const builder = new NodeJsBuilder(args.dir, version, size);
+        lastBuilder = builder;
+        p = p.then(() => {
+          log(`building for version=${version}, size=${size}`);
+          return builder.buildFromSource(args.upload, args.cache, args.container, arch);
+        });
+      })
     });
     if (args.clean) { p = p.then(() => lastBuilder.cleanupBuild().catch(err => log(err))); }
   });
