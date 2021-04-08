@@ -204,7 +204,7 @@ class NodeJsBuilder {
   }
 
   buildInContainerNonX64(arch) {
-    const containerTag = 'clintsharp/js2bin-builder:latest-nonx64';
+    const containerTag = 'cribl/js2bin-builder:latest-nonx64';
     return runCommand(
         'docker', ['run',
           '--platform', arch,
