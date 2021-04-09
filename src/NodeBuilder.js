@@ -72,8 +72,11 @@ class NodeJsBuilder {
     return prettyPlatform[process.platform];
   }
 
-  static getArch() {
-    return process.arch in prettyArch ? prettyArch[process.arch] : process.arch;
+  static getArch(arch) {
+    if (arch.indexOf('linux') > -1) {
+      arch = arch.split('/')[1];
+    }
+    return arch in prettyArch ? prettyArch[arch] : arch;
   }
 
   downloadExpandNodeSource() {
@@ -107,10 +110,10 @@ class NodeJsBuilder {
     return download(url, filename);
   }
 
-  uploadNodeBinary(name, uploadBuild, cache) {
+  uploadNodeBinary(name, uploadBuild, cache, arch) {
     if (!uploadBuild && !cache) return Promise.resolve();
     if (!name) {
-      const arch = NodeJsBuilder.getArch();
+      arch = NodeJsBuilder.getArch(arch);
       const platform = prettyPlatform[process.platform];
       name = buildName(platform, arch, this.placeHolderSizeMB, this.version);
     }
@@ -249,7 +252,7 @@ class NodeJsBuilder {
         }
         return this.buildInContainer();
       })
-      .then(() => this.uploadNodeBinary(undefined, uploadBuild, cache))
+      .then(() => this.uploadNodeBinary(undefined, uploadBuild, cache, arch))
       .then(() => this.printDiskUsage())
       // .then(() => this.cleanupBuild().catch(err => log(err)))
       .then(() => {
