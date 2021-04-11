@@ -9,9 +9,6 @@ jobs:
       linux_amd64:
         imageName: 'ubuntu-20.04'
         arch: 'linux/amd64'
-      linux_arm/v7:
-        imageName: 'ubuntu-20.04'
-        arch: 'linux/arm/v7'
       mac:
         imageName: 'macos-10.14'
       windows_2017:
