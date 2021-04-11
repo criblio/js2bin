@@ -22,6 +22,7 @@ command-args: take the form of --name=value
   --dir:      (opt) Working directory, if not specified use cwd
               e.g. --dir=/tmp/js2bin
   --cache     (opt) Cache any pre-built binaries used, to avoid redownload
+  --arch:     (opt) Architecture to build for
 
 
 --ci: build NodeJS with preallocated space for embedding applications
@@ -94,8 +95,8 @@ if (args.build) {
     plats.forEach(plat => {
       const builder = new NodeJsBuilder(args.dir, version, app, args.name);
       p = p.then(() => {
-        log(`building for version=${version}, plat=${plat} app=${app}}`);
-        const arch = 'x64';
+        const arch = args.arch || 'x64';
+        log(`building for version=${version}, plat=${plat} app=${app}} arch=${arch}`);
         const outName = args.name ? `${args.name}-${plat}-${arch}` : undefined;
         return builder.buildFromCached(plat, arch, outName, args.cache);
       });
