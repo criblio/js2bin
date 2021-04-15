@@ -72,6 +72,13 @@ class NodeJsBuilder {
     return prettyPlatform[process.platform];
   }
 
+  static getArch(arch) {
+    if (arch.indexOf('linux') > -1) {
+      arch = arch.split('/')[1];
+    }
+    return arch in prettyArch ? prettyArch[arch] : arch;
+  }
+
   downloadExpandNodeSource() {
     const url = `https://nodejs.org/dist/v${this.version}/node-v${this.version}.tar.gz`;
     if (fs.existsSync(this.nodePath('configure'))) {
@@ -103,10 +110,10 @@ class NodeJsBuilder {
     return download(url, filename);
   }
 
-  uploadNodeBinary(name, uploadBuild, cache) {
+  uploadNodeBinary(name, uploadBuild, cache, arch) {
     if (!uploadBuild && !cache) return Promise.resolve();
     if (!name) {
-      const arch = process.arch in prettyArch ? prettyArch[process.arch] : process.arch;
+      arch = NodeJsBuilder.getArch(arch);
       const platform = prettyPlatform[process.platform];
       name = buildName(platform, arch, this.placeHolderSizeMB, this.version);
     }
@@ -199,12 +206,27 @@ class NodeJsBuilder {
       );
   }
 
+  buildInContainerNonX64(arch) {
+    const containerTag = 'cribl/js2bin-builder:latest-nonx64';
+    return runCommand(
+        'docker', ['run',
+          '--platform', arch,
+          '-e', 'FORCE_PYTHON2=true',
+          '-v', `${process.cwd()}:/js2bin/`,
+          '-t', containerTag,
+          '/bin/bash', '-c',
+          `cd /js2bin && npm install && ./js2bin.js --ci --node=${this.version} --size=${this.placeHolderSizeMB}MB`
+        // `source /opt/rh/devtoolset-7/enable && source /opt/rh/python27/enable && cd /js2bin && npm install && ./js2bin.js --ci --node=${this.version} --size=${this.placeHolderSizeMB}MB`
+        ]
+      );
+  }
+
   // 1. download node source
   // 2. expand node version
   // 3. install _third_party_main.js
   // 4. process mainAppFile (gzip, base64 encode it) - could be a placeholder file
   // 5. kick off ./configure & build
-  buildFromSource(uploadBuild, cache) {
+  buildFromSource(uploadBuild, cache, container, arch) {
     const mod1 = path.join('lib', '_third_party_main.js');
     const mod2 = path.join('lib', '_js2bin_app_main.js');
     const makeArgs = isWindows ? ['x64', 'noetw', 'no-cctest', 'link-module', mod1, 'link-module', mod2] : [`-j${os.cpus().length}`];
@@ -219,17 +241,18 @@ class NodeJsBuilder {
             .then(() => runCommand(this.make, makeArgs, this.nodeSrcDir));
         }
 
-        // check to see if the system we're running on is old enough - if not use a container build
-        const lddVersion = execSync('ldd --version').toString();
-        if (lddVersion.indexOf('ldd (GNU libc) 2.12') > -1) {
+        if (!container) {
           const cfgMakeEnv = { ...process.env };
           cfgMakeEnv.LDFLAGS = '-lrt'; // needed for node 12 to be compiled with this old compiler https://github.com/nodejs/node/issues/30077#issuecomment-574535342
           return runCommand(this.configure, configArgs, this.nodeSrcDir, cfgMakeEnv)
             .then(() => runCommand(this.make, makeArgs, this.nodeSrcDir, cfgMakeEnv));
         }
+        if (arch !== 'linux/amd64') {
+          return this.buildInContainerNonX64(arch);
+        }
         return this.buildInContainer();
       })
-      .then(() => this.uploadNodeBinary(undefined, uploadBuild, cache))
+      .then(() => this.uploadNodeBinary(undefined, uploadBuild, cache, arch))
       .then(() => this.printDiskUsage())
       // .then(() => this.cleanupBuild().catch(err => log(err)))
       .then(() => {

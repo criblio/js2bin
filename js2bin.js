@@ -22,6 +22,7 @@ command-args: take the form of --name=value
   --dir:      (opt) Working directory, if not specified use cwd
               e.g. --dir=/tmp/js2bin
   --cache     (opt) Cache any pre-built binaries used, to avoid redownload
+  --arch:     (opt) Architecture to build for
 
 
 --ci: build NodeJS with preallocated space for embedding applications
@@ -29,10 +30,12 @@ command-args: take the form of --name=value
           e.g. --node=10.16.0
   --size: Amount of preallocated space, can specify more than one. 
           e.g. --size=2MB --size==4MB
-  --dir:    (opt) Working directory, if not specified use cwd
-  --cache:  (opt) whether to keep build in the cache (to be reused by --build)
-  --upload: (opt) whether to upload node build to github releases
-  --clean:  (opt) whether to clean up after the build
+  --dir:       (opt) Working directory, if not specified use cwd
+  --cache:     (opt) whether to keep build in the cache (to be reused by --build)
+  --upload:    (opt) whether to upload node build to github releases
+  --clean:     (opt) whether to clean up after the build
+  --container: (opt) build using builder container rather than local dev tools
+  --arch:      (opt) build on a specific architecture
 
 --help: print this help message
 `);
@@ -67,6 +70,7 @@ function parseArgs() {
   }
   args.node = (args.node || '10.16.0');
   args.platform = (args.platform || NodeJsBuilder.platform());
+  args.container = (args.container || false);
   return args;
 }
 
@@ -91,28 +95,33 @@ if (args.build) {
     plats.forEach(plat => {
       const builder = new NodeJsBuilder(args.dir, version, app, args.name);
       p = p.then(() => {
-        log(`building for version=${version}, plat=${plat} app=${app}}`);
-        const arch = 'x64';
+        const arch = args.arch || 'x64';
+        log(`building for version=${version}, plat=${plat} app=${app}} arch=${arch}`);
         const outName = args.name ? `${args.name}-${plat}-${arch}` : undefined;
         return builder.buildFromCached(plat, arch, outName, args.cache);
       });
     });
   });
+  p = p.catch(err => log(err));
 } else if (args.ci) {
   const versions = asArray(args.node);
+  const archs = asArray(args.arch || 'x64');
   const sizes = asArray(args.size || '2MB').map(v => `__${v.trim().toUpperCase()}__`);
   versions.forEach(version => {
     let lastBuilder;
     sizes.forEach(size => {
-      const builder = new NodeJsBuilder(args.dir, version, size);
-      lastBuilder = builder;
-      p = p.then(() => {
-        log(`building for version=${version}, size=${size}`);
-        return builder.buildFromSource(args.upload, args.cache);
-      });
+      archs.forEach(arch => {
+        const builder = new NodeJsBuilder(args.dir, version, size);
+        lastBuilder = builder;
+        p = p.then(() => {
+          log(`building for version=${version}, size=${size} arch=${arch}`);
+          return builder.buildFromSource(args.upload, args.cache, args.container, arch);
+        });
+      })
     });
     if (args.clean) { p = p.then(() => lastBuilder.cleanupBuild().catch(err => log(err))); }
   });
+  p = p.catch(err => log(err));
 } else {
   usage();
 }
