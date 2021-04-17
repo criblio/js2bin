@@ -115,3 +115,4 @@ This is exactly what `js2bin` does - with the following specs/modifications:
 2. the contents of the embedded application are compressed and base64 encoded. (why? because when embedding a JS script that has chars outside the ASCII range the **entire** script is stored using UCS-2/UTF-16 for storing the script, thus doubling in size. This is common when you bundle up char conversion libraries that contain pregenerated tables - e.g. is the popular [iconv-lite](https://www.npmjs.com/package/iconv-lite) )
 
 
+
