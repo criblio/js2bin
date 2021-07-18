@@ -44,6 +44,7 @@ function buildName(platform, arch, placeHolderSizeMB, version) {
 
 class NodeJsBuilder {
   constructor(cwd, version, mainAppFile, appName) {
+
     this.version = version;
     this.appFile = resolve(mainAppFile);
     this.appName = appName;
@@ -262,12 +263,13 @@ class NodeJsBuilder {
       .catch(err => this.printDiskUsage().then(() => { throw err; }));
   }
 
-  buildFromCached(platform = 'linux', arch = 'x64', outFile = undefined, cache = false) {
+  buildFromCached(platform = 'linux', arch = 'x64', outFile = undefined, cache = false, size = '2MB') {
     const mainAppFileCont = this.getAppContentToBundle();
     this.placeHolderSizeMB = Math.ceil(mainAppFileCont.length / 1024 / 1024); // 2, 4, 6, 8...
     if (this.placeHolderSizeMB % 2 !== 0) {
       this.placeHolderSizeMB += 1;
     }
+    if (size) this.placeHolderSizeMB = parseInt( size.toUpperCase().replaceAll('MB', '') )
 
     return this.downloadCachedBuild(platform, arch)
       .then(cachedFile => {
