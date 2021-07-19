@@ -208,7 +208,7 @@ class NodeJsBuilder {
   }
 
   buildInContainerNonX64(arch) {
-    const containerTag = 'cribl/js2bin-builder:latest-nonx64';
+    const containerTag = 'cribl/js2bin-builder:next-nonx64';
     return runCommand(
         'docker', ['run',
           '--platform', arch,
@@ -216,8 +216,7 @@ class NodeJsBuilder {
           '-v', `${process.cwd()}:/js2bin/`,
           '-t', containerTag,
           '/bin/bash', '-c',
-          `cd /js2bin && npm install && ./js2bin.js --ci --node=${this.version} --size=${this.placeHolderSizeMB}MB`
-        // `source /opt/rh/devtoolset-7/enable && source /opt/rh/python27/enable && cd /js2bin && npm install && ./js2bin.js --ci --node=${this.version} --size=${this.placeHolderSizeMB}MB`
+          `cd /js2bin && npm install && scl enable devtoolset-7 './js2bin.js --ci --node=${this.version} --size=${this.placeHolderSizeMB}MB'`
         ]
       );
   }
