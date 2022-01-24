@@ -1,0 +1,14 @@
+FROM centos:7
+
+# use node 10 as it's guaranteed to run on CentOS6
+RUN yum install -y centos-release-scl && \
+    yum install -y devtoolset-7 python27 wget && \
+    wget -q https://nodejs.org/dist/v10.23.0/node-v10.23.0-linux-arm64.tar.gz && \
+    tar -xf node-v10.23.0-linux-arm64.tar.gz && \ 
+    rm node-v10.23.0-linux-arm64.tar.gz && \
+    ln -s /node-v10.23.0-linux-arm64/bin/node /bin/node && \ 
+    ln -s /node-v10.23.0-linux-arm64/bin/npm /bin/npm 
+
+# to buid using this container you need to enable the right slc toolchain ie
+# scl enable devtoolset-7 '<your-build-command-here>'
+
