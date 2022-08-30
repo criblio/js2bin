@@ -5,6 +5,7 @@ const { join, dirname } = require('path');
 const { promisify } = require('util');
 const fs = require('fs');
 const { URL } = require('url');
+const { pipeline } = require('stream');
 
 const mkdirAsync = promisify(fs.mkdir);
 const copyFileAsync = promisify(fs.copyFile);
@@ -75,6 +76,34 @@ function runCommand(command, args = [], cwd = undefined, env = undefined, verbos
         }
         resolve();
       });
+  });
+}
+
+async function patchFile(file, patchFile) {
+  await new Promise((resolve, reject) => {
+    const proc = spawn(
+      'patch',
+      [
+        '-uN',
+        file
+      ],
+      {
+        stdio: [
+          null,
+          'inherit',
+          'inherit'
+        ]
+      })
+      .once('exit', code => {
+        if (code !== 0) return reject(new Error(`falied to patch file=${file} with patch=${patchFile} code=${code}`));
+        return resolve();
+      })
+      .once('error', reject);
+    pipeline(
+      fs.createReadStream(patchFile),
+      proc.stdin,
+      err => err ? reject(err) : undefined
+    );
   });
 }
 
@@ -225,5 +254,6 @@ module.exports = {
   mkdirp,
   rmrf,
   copyFileAsync,
-  renameAsync
+  renameAsync,
+  patchFile
 };

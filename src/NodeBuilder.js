@@ -1,8 +1,7 @@
 
-const { log, download, upload, fetch, mkdirp, rmrf, copyFileAsync, runCommand, renameAsync } = require('./util');
+const { log, download, upload, fetch, mkdirp, rmrf, copyFileAsync, runCommand, renameAsync, patchFile } = require('./util');
 const { gzipSync, createGunzip } = require('zlib');
 const { join, dirname, basename, resolve } = require('path');
-const { execSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
@@ -43,8 +42,7 @@ function buildName(platform, arch, placeHolderSizeMB, version) {
 }
 
 class NodeJsBuilder {
-  constructor(cwd, version, mainAppFile, appName) {
-
+  constructor(cwd, version, mainAppFile, appName, patchDir) {
     this.version = version;
     this.appFile = resolve(mainAppFile);
     this.appName = appName;
@@ -61,6 +59,7 @@ class NodeJsBuilder {
     this.make = isWindows ? 'vcbuild.bat' : isBsd ? 'gmake' : 'make';
     this.configure = isWindows ? 'configure' : './configure';
     this.srcDir = join(__dirname);
+    this.patchDir = patchDir || join(this.srcDir, 'patch', version);
     this.buildDir = join(cwd || process.cwd(), 'build');
     this.nodeSrcFile = join(this.buildDir, `node-v${version}.tar.gz`);
     this.nodeSrcDir = join(this.buildDir, `node-v${version}`);
@@ -190,6 +189,15 @@ class NodeJsBuilder {
       });
   }
 
+  async patchThirdPartyMain() {
+    await patchFile(
+      this.nodePath('lib', 'internal', 'main', 'run_third_party_main.js'),
+      join(this.patchDir, 'run_third_party_main.js.patch'));
+    await patchFile(
+      this.nodePath('src', 'node.cc'),
+      join(this.patchDir, 'node.cc.patch'));
+  }
+
   printDiskUsage() {
     if (isWindows) { return runCommand('fsutil', ['volume', 'diskfree', 'd:']); }
     return runCommand('df', ['-h']);
@@ -234,6 +242,7 @@ class NodeJsBuilder {
     return this.printDiskUsage()
       .then(() => this.downloadExpandNodeSource())
       .then(() => this.prepareNodeJsBuild())
+      .then(() => this.version.split('.')[0] >= 15 ? this.patchThirdPartyMain() : Promise.resolve())
       .then(() => {
         if (isWindows) { return runCommand(this.make, makeArgs, this.nodeSrcDir); }
         if (isDarwin) {
