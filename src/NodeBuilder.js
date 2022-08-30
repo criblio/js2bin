@@ -94,7 +94,8 @@ class NodeJsBuilder {
           .on('error', reject)
           .on('finish', resolve);
       })
-      );
+      )
+      .then(() => this.version.split('.')[0] >= 15 ? this.patchThirdPartyMain() : Promise.resolve())
   }
 
   downloadCachedBuild(platform, arch, placeHolderSizeMB) {
@@ -242,7 +243,6 @@ class NodeJsBuilder {
     return this.printDiskUsage()
       .then(() => this.downloadExpandNodeSource())
       .then(() => this.prepareNodeJsBuild())
-      .then(() => this.version.split('.')[0] >= 15 ? this.patchThirdPartyMain() : Promise.resolve())
       .then(() => {
         if (isWindows) { return runCommand(this.make, makeArgs, this.nodeSrcDir); }
         if (isDarwin) {
