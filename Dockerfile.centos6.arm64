@@ -2,7 +2,7 @@ FROM centos:7
 
 # use node 10 as it's guaranteed to run on CentOS6
 RUN yum install -y centos-release-scl && \
-    yum install -y devtoolset-7 python27 wget && \
+    yum install -y devtoolset-7 python27 wget patch && \
     wget -q https://nodejs.org/dist/v10.23.0/node-v10.23.0-linux-arm64.tar.gz && \
     tar -xf node-v10.23.0-linux-arm64.tar.gz && \ 
     rm node-v10.23.0-linux-arm64.tar.gz && \
