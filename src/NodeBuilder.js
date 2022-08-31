@@ -198,15 +198,19 @@ class NodeJsBuilder {
       this.nodePath('src', 'node.cc'),
       join(this.patchDir, 'node.cc.patch'));
   }
-  async patchNodeMain() {
+  async patchNodeCompileIssues() {
     await patchFile(
       this.nodePath('src', 'node_main.cc'),
       join(this.patchDir, 'node_main.cc.patch'));
+
+    await patchFile(
+      this.nodePath('deps','v8','src','heap','base','asm','arm64','push_registers_asm.cc'),
+      join(this.patchDir, 'push_registers_asm.cc.patch'));	  
   }
 
   async applyPatches() {
      await this.patchThirdPartyMain();
-     await this.patchNodeMain(); // fatal error: sys/auxv.h: No such file or directory
+     await this.patchNodeCompileIssues(); 
   }
 
   printDiskUsage() {
