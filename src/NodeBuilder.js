@@ -95,7 +95,7 @@ class NodeJsBuilder {
           .on('finish', resolve);
       })
       )
-      .then(() => this.version.split('.')[0] >= 15 ? this.patchThirdPartyMain() : Promise.resolve())
+      .then(() => this.version.split('.')[0] >= 15 ? this.applyPatches() : Promise.resolve())
   }
 
   downloadCachedBuild(platform, arch, placeHolderSizeMB) {
@@ -198,6 +198,16 @@ class NodeJsBuilder {
       this.nodePath('src', 'node.cc'),
       join(this.patchDir, 'node.cc.patch'));
   }
+  async patchNodeMain() {
+    await patchFile(
+      this.nodePath('src', 'node_main.cc'),
+      join(this.patchDir, 'node_main.cc.patch'));
+  }
+
+  async applyPatches() {
+     await this.patchThirdPartyMain();
+     await this.patchNodeMain(); // fatal error: sys/auxv.h: No such file or directory
+  }
 
   printDiskUsage() {
     if (isWindows) { return runCommand('fsutil', ['volume', 'diskfree', 'd:']); }
@@ -211,7 +221,7 @@ class NodeJsBuilder {
           '-v', `${process.cwd()}:/js2bin/`,
           '-t', containerTag,
           '/bin/bash', '-c',
-        `source /opt/rh/devtoolset-7/enable && source /opt/rh/python27/enable && cd /js2bin && npm install && ./js2bin.js --ci --node=${this.version} --size=${this.placeHolderSizeMB}MB`
+        `source /opt/rh/devtoolset-7/enable && source /opt/rh/rh-python36/enable && cd /js2bin && npm install && ./js2bin.js --ci --node=${this.version} --size=${this.placeHolderSizeMB}MB`
         ]
       );
   }
@@ -225,7 +235,7 @@ class NodeJsBuilder {
           '-v', `${process.cwd()}:/js2bin/`,
           '-t', containerTag,
           '/bin/bash', '-c',
-          `cd /js2bin && npm install && scl enable devtoolset-7 './js2bin.js --ci --node=${this.version} --size=${this.placeHolderSizeMB}MB'`
+          `source /opt/rh/devtoolset-7/enable && source /opt/rh/rh-python36/enable && cd /js2bin && npm install && ./js2bin.js --ci --node=${this.version} --size=${this.placeHolderSizeMB}MB`
         ]
       );
   }
