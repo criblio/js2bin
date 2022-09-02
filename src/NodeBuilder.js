@@ -56,7 +56,7 @@ class NodeJsBuilder {
       }
     }
     const isBsd = process.platform.indexOf('bsd') > -1;
-    this.make = isWindows ? 'build.bat' : isBsd ? 'gmake' : 'make';
+    this.make = isWindows ? 'vcbuild.bat' : isBsd ? 'gmake' : 'make';
     this.configure = isWindows ? 'configure' : './configure';
     this.srcDir = join(__dirname);
     this.patchDir = patchDir || join(this.srcDir, 'patch', version);

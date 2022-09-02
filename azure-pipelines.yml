@@ -23,7 +23,7 @@ jobs:
   - task: UsePythonVersion@0
     displayName: Setup Python
     inputs:
-      versionSpec: '2.7'
+      versionSpec: '3.9'
       architecture: 'x64'
   - task: NodeTool@0
     displayName: Install Node
