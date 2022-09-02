@@ -12,7 +12,7 @@ jobs:
       mac:
         imageName: 'macos-10.14'
       windows_2019:
-        imageName: 'vs2019-win2019'
+        imageName: 'windows-2019'
       # windows_2015:
       #   imageName: 'vs2017-win2016'
 #      alpine:
