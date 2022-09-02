@@ -11,8 +11,8 @@ jobs:
         arch: 'linux/amd64'
       mac:
         imageName: 'macos-10.14'
-      windows_2017:
-        imageName: 'vs2017-win2016'
+      windows_2019:
+        imageName: 'vs2019-win2019'
       # windows_2015:
       #   imageName: 'vs2017-win2016'
 #      alpine:
@@ -32,9 +32,9 @@ jobs:
   # - script: sudo apt-get update && sudo apt-get install -y gcc-4.9 g++-4.9
   #   condition: contains(variables['Agent.JobName'], 'linux')
   #   displayName: Install Linux build dependencies
-  - script: choco install visualcpp-build-tools --version 14.0.25420.1 -fy && npm config set msvs_version 2015
-    condition: contains(variables['Agent.JobName'], 'windows_2015')
-    displayName: Install Windows build dependencies
+  #- script: choco install visualcpp-build-tools --version 14.0.25420.1 -fy && npm config set msvs_version 2015
+  #  condition: contains(variables['Agent.JobName'], 'windows_2015')
+  #  displayName: Install Windows build dependencies
   - script: choco install nasm -fy
     displayName: Install Windows Assembler (NASM)
     condition: contains(variables['Agent.JobName'], 'windows')
