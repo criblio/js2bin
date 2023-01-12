@@ -40,6 +40,6 @@ if (cluster.worker) {
   process.argv.splice(1, 0, __filename); // don't mess with argv in clustering
 }
 
-${gunzipSync(Buffer.from(source, 'base64')).toString()}
+${gunzipSync(Buffer.from(source, 'base64'), {chunkSize: 128*1024*1024}).toString()}
 
 `, filename);
