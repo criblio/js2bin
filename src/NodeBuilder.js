@@ -200,6 +200,10 @@ class NodeJsBuilder {
   }
   async patchNodeCompileIssues() {
     await patchFile(
+      this.nodePath('node.gyp'),
+      join(this.patchDir, 'node.gyp.patch'));
+
+    await patchFile(
       this.nodePath('src', 'node_main.cc'),
       join(this.patchDir, 'node_main.cc.patch'));
 
