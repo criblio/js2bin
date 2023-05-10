@@ -49,7 +49,7 @@ jobs:
     env:
       GITHUB_TOKEN: $(PersonalGithubToken)
       ARCH: $(arch)
-  - script: node js2bin.js --ci --container=true --node=16.17.1 --size=6MB --size=4MB --size=2MB --upload --clean
+  - script: node js2bin.js --ci --container=true --node=16.17.1 --size=8MB --size=4MB --size=2MB --upload --clean
     displayName: Build base node binaries non-linux
     condition: not(contains(variables['Agent.JobName'], 'linux'))
     env:
