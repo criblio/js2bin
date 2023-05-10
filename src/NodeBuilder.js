@@ -288,7 +288,7 @@ class NodeJsBuilder {
       .catch(err => this.printDiskUsage().then(() => { throw err; }));
   }
 
-  buildFromCached(platform = 'linux', arch = 'x64', outFile = undefined, cache = false, size = '2MB') {
+  buildFromCached(platform = 'linux', arch = 'x64', outFile = undefined, cache = false, size) {
     const mainAppFileCont = this.getAppContentToBundle();
     this.placeHolderSizeMB = Math.ceil(mainAppFileCont.length / 1024 / 1024); // 2, 4, 6, 8...
     if (this.placeHolderSizeMB % 2 !== 0) {
