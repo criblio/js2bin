@@ -80,6 +80,7 @@ function runCommand(command, args = [], cwd = undefined, env = undefined, verbos
 }
 
 async function patchFile(file, patchFile) {
+  if(!fs.existsSync(patchFile)) return; // noop
   await new Promise((resolve, reject) => {
     const proc = spawn(
       'patch',
