@@ -166,7 +166,7 @@ class NodeJsBuilder {
   }
 
   getAppContentToBundle() {
-    const mainAppFileCont = gzipSync(fs.readFileSync(this.appFile)).toString('base64');
+    const mainAppFileCont = gzipSync(fs.readFileSync(this.appFile), { level: 9 }).toString('base64');
     return Buffer.from(this.appName).toString('base64') + '\n' + mainAppFileCont;
   }
 
