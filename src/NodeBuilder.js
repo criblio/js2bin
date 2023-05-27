@@ -208,6 +208,10 @@ class NodeJsBuilder {
       join(this.patchDir, 'node_main.cc.patch'));
 
     await patchFile(
+      this.nodePath('src', 'node_credentials.cc'),
+      join(this.patchDir, 'node_credentials.cc.patch'));
+  
+    await patchFile(
       this.nodePath('deps','v8','src','heap','base','asm','arm64','push_registers_asm.cc'),
       join(this.patchDir, 'push_registers_asm.cc.patch'));	  
   }
