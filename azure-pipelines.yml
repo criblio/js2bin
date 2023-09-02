@@ -43,13 +43,13 @@ jobs:
   - script: docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
     displayName: setup docker for multi platform
     condition: contains(variables['Agent.JobName'], 'linux')
-  - script: node js2bin.js --ci --container=true --node=18.15.0 --size=8MB --size=6MB --size=4MB --upload --clean --arch=${ARCH}
+  - script: node js2bin.js --ci --container=true --node=16.20.2 --size=6MB --size=4MB --upload --clean --arch=${ARCH}
     displayName: Build base node binaries linux
     condition: contains(variables['Agent.JobName'], 'linux')
     env:
       GITHUB_TOKEN: $(PersonalGithubToken)
       ARCH: $(arch)
-  - script: node js2bin.js --ci --container=true --node=18.15.0 --size=8MB --size=6MB --size=4MB --upload --clean
+  - script: node js2bin.js --ci --container=true --node=16.20.2 --size=6MB --size=4MB --upload --clean
     displayName: Build base node binaries non-linux
     condition: not(contains(variables['Agent.JobName'], 'linux'))
     env:
