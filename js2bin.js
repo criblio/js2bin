@@ -36,6 +36,7 @@ command-args: take the form of --name=value
   --clean:     (opt) whether to clean up after the build
   --container: (opt) build using builder container rather than local dev tools
   --arch:      (opt) build on a specific architecture
+  --pointer-compress:  (opt) whether to enable pointer compression
 
 --help: print this help message
 `);
@@ -71,6 +72,7 @@ function parseArgs() {
   args.node = (args.node || '10.16.0');
   args.platform = (args.platform || NodeJsBuilder.platform());
   args.container = (args.container || false);
+  args.ptrCompression = (args['pointer-compress'] == 'true');
   return args;
 }
 
@@ -115,7 +117,7 @@ if (args.build) {
         lastBuilder = builder;
         p = p.then(() => {
           log(`building for version=${version}, size=${size} arch=${arch}`);
-          return builder.buildFromSource(args.upload, args.cache, args.container, arch);
+          return builder.buildFromSource(args.upload, args.cache, args.container, arch, args.ptrCompression);
         });
       })
     });

@@ -111,11 +111,11 @@ class NodeJsBuilder {
     return download(url, filename);
   }
 
-  uploadNodeBinary(name, uploadBuild, cache, arch) {
+  uploadNodeBinary(name, uploadBuild, cache, arch, ptrCompression) {
     if (!uploadBuild && !cache) return Promise.resolve();
     if (!name) {
       arch = NodeJsBuilder.getArch(arch);
-      const platform = prettyPlatform[process.platform];
+      const platform = prettyPlatform[process.platform] + (ptrCompression ? '-ptrc' : '');
       name = buildName(platform, arch, this.placeHolderSizeMB, this.version);
     }
 
@@ -256,11 +256,12 @@ class NodeJsBuilder {
   // 3. install _third_party_main.js
   // 4. process mainAppFile (gzip, base64 encode it) - could be a placeholder file
   // 5. kick off ./configure & build
-  buildFromSource(uploadBuild, cache, container, arch) {
+  buildFromSource(uploadBuild, cache, container, arch, ptrCompression) {
     const mod1 = path.join('lib', '_third_party_main.js');
     const mod2 = path.join('lib', '_js2bin_app_main.js');
     const makeArgs = isWindows ? ['x64', 'noetw', 'no-cctest', 'link-module', mod1, 'link-module', mod2] : [`-j${os.cpus().length}`];
     const configArgs = ['--link-module', mod1, '--link-module', mod2];
+    if(ptrCompression) configArgs.push('--experimental-enable-pointer-compression')
     return this.printDiskUsage()
       .then(() => this.downloadExpandNodeSource())
       .then(() => this.prepareNodeJsBuild())
@@ -282,7 +283,7 @@ class NodeJsBuilder {
         }
         return this.buildInContainer();
       })
-      .then(() => this.uploadNodeBinary(undefined, uploadBuild, cache, arch))
+      .then(() => this.uploadNodeBinary(undefined, uploadBuild, cache, arch, ptrCompression))
       .then(() => this.printDiskUsage())
       // .then(() => this.cleanupBuild().catch(err => log(err)))
       .then(() => {
