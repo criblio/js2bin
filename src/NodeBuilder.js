@@ -204,6 +204,10 @@ class NodeJsBuilder {
       join(this.patchDir, 'node.gyp.patch'));
 
     await patchFile(
+      this.nodePath('vcbuild.bat'),
+      join(this.patchDir, 'vcbuild.bat.patch'));
+
+    await patchFile(
       this.nodePath('src', 'node_main.cc'),
       join(this.patchDir, 'node_main.cc.patch'));
 
@@ -261,7 +265,10 @@ class NodeJsBuilder {
     const mod2 = path.join('lib', '_js2bin_app_main.js');
     const makeArgs = isWindows ? ['x64', 'noetw', 'no-cctest', 'link-module', mod1, 'link-module', mod2] : [`-j${os.cpus().length}`];
     const configArgs = ['--link-module', mod1, '--link-module', mod2];
-    if(ptrCompression) configArgs.push('--experimental-enable-pointer-compression')
+    if(ptrCompression) {
+      if(isWindows) makeArgs.push('v8_ptr_compress');
+      else          configArgs.push('--experimental-enable-pointer-compression');
+    }
     return this.printDiskUsage()
       .then(() => this.downloadExpandNodeSource())
       .then(() => this.prepareNodeJsBuild())
