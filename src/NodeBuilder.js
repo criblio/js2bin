@@ -203,7 +203,7 @@ class NodeJsBuilder {
       this.nodePath('node.gyp'),
       join(this.patchDir, 'node.gyp.patch'));
 
-    await patchFile(
+    isWindows && await patchFile(
       this.nodePath('vcbuild.bat'),
       join(this.patchDir, 'vcbuild.bat.patch'));
 
