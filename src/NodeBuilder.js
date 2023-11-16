@@ -220,9 +220,17 @@ class NodeJsBuilder {
       join(this.patchDir, 'push_registers_asm.cc.patch'));	  
   }
 
+  async patchBugs() {
+    await patchFile(
+      this.nodePath('src', 'crypto', 'crypto_tls.cc'),
+      join(this.patchDir, 'crypto_tls.cc.patch')
+    );
+  }
+
   async applyPatches() {
      await this.patchThirdPartyMain();
-     await this.patchNodeCompileIssues(); 
+     await this.patchNodeCompileIssues();
+     await this.patchBugs(); 
   }
 
   printDiskUsage() {
