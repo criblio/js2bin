@@ -221,9 +221,11 @@ class NodeJsBuilder {
   }
 
   async patchBugs() {
+    const tlsPatch = join(this.patchDir, 'crypto_tls.cc.patch');
+    if (!fs.existsSync(tlsPatch)) return
     await patchFile(
       this.nodePath('src', 'crypto', 'crypto_tls.cc'),
-      join(this.patchDir, 'crypto_tls.cc.patch')
+      tlsPatch
     );
   }
 
