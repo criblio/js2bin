@@ -1,0 +1,13 @@
+disable building of cctest as it (a) it fails to build due to align_alloc and (b) it is just a waste of time
+
+--- node.gyp    2023-01-13 00:09:28.917464091 -0800
++++ node.gyp    2023-01-13 00:09:21.165486651 -0800
+@@ -1128,7 +1128,7 @@
+     }, # fuzz_env
+     {
+       'target_name': 'cctest',
+-      'type': 'executable',
++      'type': 'none',
+ 
+       'dependencies': [
+         '<(node_lib_target_name)',
