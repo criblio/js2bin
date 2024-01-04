@@ -237,7 +237,7 @@ class NodeJsBuilder {
           '-v', `${process.cwd()}:/js2bin/`,
           '-t', containerTag,
           '/bin/bash', '-c',
-        `source /opt/rh/devtoolset-8/enable && source /opt/rh/rh-python36/enable && cd /js2bin && npm install && ./js2bin.js --ci --node=${this.version} --size=${this.placeHolderSizeMB}MB`
+        `source /opt/rh/devtoolset-8/enable && cd /js2bin && npm install && ./js2bin.js --ci --node=${this.version} --size=${this.placeHolderSizeMB}MB`
         ]
       );
   }
