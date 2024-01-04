@@ -1,11 +1,9 @@
-FROM centos:6
-
-# add centos6 vault based repos
-COPY centos6-repos/* /etc/yum.repos.d/
+FROM centos:7
 
 # use node 10 as it's guaranteed to run on CentOS6
 RUN yum install -y centos-release-scl && \
-    yum install -y devtoolset-7 rh-python36 wget patch && \
+    yum-config-manager --enable rhel-server-rhscl-7-rpms && \
+    yum install -y devtoolset-8 python36 wget patch && \
     wget -q https://nodejs.org/dist/v10.23.0/node-v10.23.0-linux-x64.tar.gz && \
     tar -xf node-v10.23.0-linux-x64.tar.gz && \ 
     rm node-v10.23.0-linux-x64.tar.gz && \
@@ -13,5 +11,6 @@ RUN yum install -y centos-release-scl && \
     ln -s /node-v10.23.0-linux-x64/bin/npm /bin/npm 
 
 # before building using this container you need to enable the right slc toolchain ie
-# source /opt/rh/devtoolset-7/enable && source /opt/rh/rh-python36/enable
+# scl enable devtoolset-8 '<your-build-command-here>'
+# or 'source /opt/rh/devtoolset-8/enable'
 
