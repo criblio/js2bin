@@ -58,15 +58,19 @@ jobs:
   - script: choco install nasm -fy
     displayName: Install Windows Assembler (NASM)
     condition: contains(variables['Agent.JobName'], 'windows')
+    failOnStderr: true
   - script: npm ci
     displayName: Install dependencies
+    failOnStderr: true
   - script: docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
     displayName: setup docker for multi platform
     condition: contains(variables['Agent.JobName'], 'linux')
+    failOnStderr: true
   ## linux builds
   - script: node js2bin.js --ci --container=true --pointer-compress=$(ptrcompress) --node=$(node) --size=6MB --size=4MB --upload --clean --arch=${ARCH}
     displayName: Build base node binaries linux
     condition: contains(variables['Agent.JobName'], 'linux')
+    failOnStderr: true
     env:
       GITHUB_TOKEN: $(PersonalGithubToken)
       ARCH: $(arch)
@@ -74,5 +78,6 @@ jobs:
   - script: node js2bin.js --ci --container=true --pointer-compress=$(ptrcompress) --node=$(node) --size=6MB --size=4MB --upload --clean
     displayName: Build base node binaries non-linux
     condition: not(contains(variables['Agent.JobName'], 'linux'))
+    failOnStderr: true
     env:
       GITHUB_TOKEN: $(PersonalGithubToken)
