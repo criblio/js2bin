@@ -261,9 +261,7 @@ class NodeJsBuilder {
   // 4. process mainAppFile (gzip, base64 encode it) - could be a placeholder file
   // 5. kick off ./configure & build
   buildFromSource(uploadBuild, cache, container, arch, ptrCompression) {
-    const mod1 = path.join('lib', '_third_party_main.js');
-    const mod2 = path.join('lib', '_js2bin_app_main.js');
-    const makeArgs = isWindows ? ['x64', 'noetw', 'no-cctest', 'link-module', mod1, 'link-module', mod2] : [`-j${os.cpus().length}`];
+    const makeArgs = isWindows ? ['x64', 'noetw', 'no-cctest'] : [`-j${os.cpus().length}`];
     const configArgs = [];
     if(ptrCompression) {
       if(isWindows) makeArgs.push('v8_ptr_compress');
