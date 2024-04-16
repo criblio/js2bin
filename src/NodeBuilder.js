@@ -10,6 +10,7 @@ const pkg = require('../package.json');
 
 const isWindows = process.platform === 'win32';
 const isDarwin = process.platform === 'darwin';
+const isLinux = process.platform === 'linux';
 
 const prettyPlatform = {
   win32: 'windows',
@@ -214,10 +215,14 @@ class NodeJsBuilder {
     await patchFile(
       this.nodePath('src', 'node_credentials.cc'),
       join(this.patchDir, 'node_credentials.cc.patch'));
-  
+
     await patchFile(
       this.nodePath('deps','v8','src','heap','base','asm','arm64','push_registers_asm.cc'),
-      join(this.patchDir, 'push_registers_asm.cc.patch'));	  
+      join(this.patchDir, 'push_registers_asm.cc.patch'));
+
+    isLinux && await patchFile(
+      this.nodePath('deps','cares','config','linux','ares_config.h'),
+      join(this.patchDir, 'no_rand_on_glibc.patch'));
   }
 
   async applyPatches() {
