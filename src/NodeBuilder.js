@@ -199,6 +199,7 @@ class NodeJsBuilder {
       this.nodePath('src', 'node.cc'),
       join(this.patchDir, 'node.cc.patch'));
   }
+
   async patchNodeCompileIssues() {
     await patchFile(
       this.nodePath('node.gyp'),
@@ -208,26 +209,14 @@ class NodeJsBuilder {
       this.nodePath('vcbuild.bat'),
       join(this.patchDir, 'vcbuild.bat.patch'));
 
-    await patchFile(
-      this.nodePath('src', 'node_main.cc'),
-      join(this.patchDir, 'node_main.cc.patch'));
-
-    await patchFile(
-      this.nodePath('src', 'node_credentials.cc'),
-      join(this.patchDir, 'node_credentials.cc.patch'));
-
-    await patchFile(
-      this.nodePath('deps','v8','src','heap','base','asm','arm64','push_registers_asm.cc'),
-      join(this.patchDir, 'push_registers_asm.cc.patch'));
-
     isLinux && await patchFile(
       this.nodePath('deps','cares','config','linux','ares_config.h'),
       join(this.patchDir, 'no_rand_on_glibc.patch'));
   }
 
   async applyPatches() {
-     await this.patchThirdPartyMain();
-     await this.patchNodeCompileIssues();
+    await this.patchThirdPartyMain();
+    await this.patchNodeCompileIssues();
   }
 
   printDiskUsage() {
