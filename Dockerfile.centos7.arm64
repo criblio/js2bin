@@ -1,8 +1,20 @@
 FROM centos:7
 
+# use Centos vault for downloading
+RUN sed -i 's/mirror.centos.org/vault.centos.org/g' /etc/yum.repos.d/*.repo && \
+    sed -i 's/^#.*baseurl=http/baseurl=http/g' /etc/yum.repos.d/*.repo && \
+    sed -i 's/^mirrorlist=http/#mirrorlist=http/g' /etc/yum.repos.d/*.repo
+
+RUN yum install -y centos-release-scl
+
+# installing centos-release-scl adds the Software Collections repo to Yum's configuration,
+# so the following replacement should be used for downloading from Centos vault
+RUN sed -i 's|mirror.centos.org/centos|vault.centos.org/altarch|g' /etc/yum.repos.d/*.repo && \
+    sed -i 's/^#.*baseurl=http/baseurl=http/g' /etc/yum.repos.d/*.repo && \
+    sed -i 's/^mirrorlist=http/#mirrorlist=http/g' /etc/yum.repos.d/*.repo
+
 # use node 10 as it's guaranteed to run on CentOS6
-RUN yum install -y centos-release-scl && \
-    yum-config-manager --enable rhel-server-rhscl-7-rpms && \
+RUN yum-config-manager --enable rhel-server-rhscl-7-rpms && \
     yum install -y devtoolset-8 python36 wget patch && \
     wget -q https://nodejs.org/dist/v10.23.0/node-v10.23.0-linux-arm64.tar.gz && \
     gunzip node-v10.23.0-linux-arm64.tar.gz && tar xf node-v10.23.0-linux-arm64.tar && rm node-v10.23.0-linux-arm64.tar && \
