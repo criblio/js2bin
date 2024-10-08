@@ -15,7 +15,7 @@ RUN sed -i 's/mirror.centos.org/vault.centos.org/g' /etc/yum.repos.d/*.repo && \
    
 # use node 10 as it's guaranteed to run on CentOS6
 RUN yum-config-manager --enable rhel-server-rhscl-7-rpms && \
-    yum install -y devtoolset-8 python36 wget patch && \
+    yum install -y devtoolset-10 python36 wget patch && \
     wget -q https://nodejs.org/dist/v10.23.0/node-v10.23.0-linux-x64.tar.gz && \
     tar -xf node-v10.23.0-linux-x64.tar.gz && \ 
     rm node-v10.23.0-linux-x64.tar.gz && \
