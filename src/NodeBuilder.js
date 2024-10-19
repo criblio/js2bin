@@ -198,6 +198,9 @@ class NodeJsBuilder {
     await patchFile(
       this.nodePath('src', 'node.cc'),
       join(this.patchDir, 'node.cc.patch'));
+    await patchFile(
+      this.nodePath('deps', 'uv', 'src', 'win', 'fs-event.c'),
+      join(this.patchDir, 'fs-event.c.patch'));
   }
 
   async patchNodeCompileIssues() {
