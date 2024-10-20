@@ -67,6 +67,7 @@ class NodeJsBuilder {
     this.cacheDir = join(cwd || process.cwd(), 'cache');
     this.resultFile = isWindows ? join(this.nodeSrcDir, 'Release', 'node.exe') : join(this.nodeSrcDir, 'out', 'Release', 'node');
     this.placeHolderSizeMB = -1;
+    this.builderImageVersion = 2;
   }
 
   static platform() {
@@ -228,26 +229,26 @@ class NodeJsBuilder {
   }
 
   buildInContainer() {
-    const containerTag = 'cribl/js2bin-builder:latest';
+    const containerTag = `cribl/js2bin-builder:${this.builderImageVersion}`;
     return runCommand(
         'docker', ['run',
           '-v', `${process.cwd()}:/js2bin/`,
           '-t', containerTag,
           '/bin/bash', '-c',
-        `source /opt/rh/devtoolset-8/enable && cd /js2bin && npm install && ./js2bin.js --ci --node=${this.version} --size=${this.placeHolderSizeMB}MB`
+        `source /opt/rh/devtoolset-10/enable && cd /js2bin && npm install && ./js2bin.js --ci --node=${this.version} --size=${this.placeHolderSizeMB}MB`
         ]
       );
   }
 
   buildInContainerNonX64(arch) {
-    const containerTag = 'cribl/js2bin-builder:latest-nonx64';
+    const containerTag = `cribl/js2bin-builder:${this.builderImageVersion}-nonx64`;
     return runCommand(
         'docker', ['run',
           '--platform', arch,
           '-v', `${process.cwd()}:/js2bin/`,
           '-t', containerTag,
           '/bin/bash', '-c',
-          `source /opt/rh/devtoolset-8/enable && cd /js2bin && npm install && ./js2bin.js --ci --node=${this.version} --size=${this.placeHolderSizeMB}MB`
+          `source /opt/rh/devtoolset-10/enable && cd /js2bin && npm install && ./js2bin.js --ci --node=${this.version} --size=${this.placeHolderSizeMB}MB`
         ]
       );
   }
@@ -258,7 +259,7 @@ class NodeJsBuilder {
   // 4. process mainAppFile (gzip, base64 encode it) - could be a placeholder file
   // 5. kick off ./configure & build
   buildFromSource(uploadBuild, cache, container, arch, ptrCompression) {
-    const makeArgs = isWindows ? ['x64', 'noetw', 'no-cctest'] : [`-j${os.cpus().length}`];
+    const makeArgs = isWindows ? ['x64', 'no-cctest'] : [`-j${os.cpus().length}`];
     const configArgs = [];
     if(ptrCompression) {
       if(isWindows) makeArgs.push('v8_ptr_compress');
