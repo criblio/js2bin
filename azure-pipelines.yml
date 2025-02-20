@@ -32,6 +32,7 @@ jobs:
       macos_15:
         imageName: 'macOS-15'
         node: '20.18.0'
+        ptrcompress: false
 
   pool:
     vmImage: $(imageName)
@@ -72,3 +73,8 @@ jobs:
     condition: not(contains(variables['Agent.JobName'], 'linux'))
     env:
       GITHUB_TOKEN: $(PersonalGithubToken)
+  - task: PublishPipelineArtifact@1
+    inputs:
+      targetPath: 'out/Release/node'
+      artifact: 'node'
+      publishLocation: pipeline
