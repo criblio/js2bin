@@ -13,8 +13,8 @@ command-args: take the form of --name=value
 --build: embed your application into the precompiled NodeJS binary.
   --node:     NodeJS version(s) to use, can specify more than one. 
               e.g. --node=10.16.0 --node=12.4.0
-  --platform: Platform(s) to build for, can specifiy more than one. 
-              e.g. --platform=linux --plaform=darwin
+  --platform: Platform(s) to build for, can specify more than one.
+              e.g. --platform=linux --platform=darwin
   --app:      Path to your (bundled) application. 
               e.g. --app=/path/to/app/index.js
   --name:     (opt) Application name
@@ -24,12 +24,11 @@ command-args: take the form of --name=value
   --cache     (opt) Cache any pre-built binaries used, to avoid redownload
   --arch:     (opt) Architecture to build for
 
-
 --ci: build NodeJS with preallocated space for embedding applications
   --node: NodeJS version to build from source, can specify more than one. 
           e.g. --node=10.16.0
   --size: Amount of preallocated space, can specify more than one. 
-          e.g. --size=2MB --size==4MB
+          e.g. --size=2MB --size=4MB
   --dir:       (opt) Working directory, if not specified use cwd
   --cache:     (opt) whether to keep build in the cache (to be reused by --build)
   --upload:    (opt) whether to upload node build to github releases
