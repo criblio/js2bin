@@ -38,6 +38,12 @@ const prettyArch = {
   x64: 'x64'
 };
 
+// keys are expected to come from values of `prettyArch`
+const darwinArch = {
+  arm64: 'arm64',
+  x64: 'x86_64',
+};
+
 function buildName(platform, arch, placeHolderSizeMB, version) {
   return `${platform}-${arch}-${version}-v1-${placeHolderSizeMB}MB`;
 }
@@ -134,6 +140,9 @@ class NodeJsBuilder {
       Authorization: 'token ' + process.env.GITHUB_TOKEN
     };
     return p
+      // TODO use $BUILD_REPOSITORY_URI? and/or allow for command line option to set this?
+      // Guessing that will look like https://github.com/criblio/js2bin.git and we will have to massage it
+      // See https://learn.microsoft.com/en-us/azure/devops/pipelines/build/variables?view=azure-devops&tabs=yaml
       .then(() => fetch(`https://api.github.com/repos/criblio/js2bin/releases/tags/v${pkg.version}`, headers))
       .then(JSON.parse)
       .then(p => p.upload_url.split('{')[0])
@@ -275,6 +284,15 @@ class NodeJsBuilder {
       .then(() => {
         if (isWindows) { return runCommand(this.make, makeArgs, this.nodeSrcDir); }
         if (isDarwin) {
+          let buildArch = darwinArch[NodeJsBuilder.getArch(arch)];
+          if (!buildArch) {
+            log(`Unrecogized arch '${arch}' for darwin, but we'll try it anyway`);
+            buildArch = arch;
+          }
+          configArgs.push(`--dest-cpu=${buildArch}`);
+          // For some reason, configure.py does not set these when given the
+          // --dest-cpu argument. Maybe we can patch it to do so?
+          makeArgs.push(`CPPFLAGS=-arch ${buildArch}`, `LDFLAGS=-arch ${buildArch}`);
           return runCommand(this.configure, configArgs, this.nodeSrcDir)
             .then(() => runCommand(this.make, makeArgs, this.nodeSrcDir));
         }
