@@ -13,8 +13,8 @@ command-args: take the form of --name=value
 --build: embed your application into the precompiled NodeJS binary.
   --node:     NodeJS version(s) to use, can specify more than one. 
               e.g. --node=10.16.0 --node=12.4.0
-  --platform: Platform(s) to build for, can specifiy more than one. 
-              e.g. --platform=linux --plaform=darwin
+  --platform: Platform(s) to build for, can specify more than one. 
+              e.g. --platform=linux --platform=darwin
   --app:      Path to your (bundled) application. 
               e.g. --app=/path/to/app/index.js
   --name:     (opt) Application name
@@ -29,7 +29,7 @@ command-args: take the form of --name=value
   --node: NodeJS version to build from source, can specify more than one. 
           e.g. --node=10.16.0
   --size: Amount of preallocated space, can specify more than one. 
-          e.g. --size=2MB --size==4MB
+          e.g. --size=2MB --size=4MB
   --dir:       (opt) Working directory, if not specified use cwd
   --cache:     (opt) whether to keep build in the cache (to be reused by --build)
   --upload:    (opt) whether to upload node build to github releases
@@ -104,7 +104,7 @@ if (args.build) {
       });
     });
   });
-  p = p.catch(err => log(err));
+  p = p.catch(err => { log(err); process.exitCode = 1; });
 } else if (args.ci) {
   const versions = asArray(args.node);
   const archs = asArray(args.arch || 'x64');
@@ -123,7 +123,7 @@ if (args.build) {
     });
     if (args.clean) { p = p.then(() => lastBuilder.cleanupBuild().catch(err => log(err))); }
   });
-  p = p.catch(err => log(err));
+  p = p.catch(err => { log(err); process.exitCode = 1; });
 } else {
   usage();
 }
