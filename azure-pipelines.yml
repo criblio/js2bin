@@ -3,54 +3,56 @@ jobs:
   timeoutInMinutes: 0
   strategy:
     matrix:
+      # We currently build this outside Azure because it is so slow it goes over the 6h job limit there.
       # linux_arm64:
       #   imageName: 'ubuntu-20.04'
       #   arch: 'linux/arm64'
       #   node: '20.18.0'
 
-      # linux_amd64:
-      #   imageName: 'ubuntu-20.04'
-      #   arch: 'linux/amd64'
-      #   node: '20.18.0'
-      #   ptrcompress: false
+      linux_amd64:
+        imageName: 'ubuntu-20.04'
+        arch: 'linux/amd64'
+        node: '20.18.0'
+        ptrcompress: false
 
-      # linux_amd64_ptrc:
-      #   imageName: 'ubuntu-20.04'
-      #   arch: 'linux/amd64'
-      #   node: '20.18.0'
-      #   ptrcompress: true
+      linux_amd64_ptrc:
+        imageName: 'ubuntu-20.04'
+        arch: 'linux/amd64'
+        node: '20.18.0'
+        ptrcompress: true
 
-      # windows_2019:
-      #   imageName: 'windows-2019'
-      #   node: '20.18.0'
-      #   ptrcompress: false
-      # windows_2019_ptrc:
-      #   imageName: 'windows-2019'
-      #   node: '20.18.0'
-      #   ptrcompress: true
+      windows_2019:
+        imageName: 'windows-2019'
+        node: '20.18.0'
+        ptrcompress: false
+      windows_2019_ptrc:
+        imageName: 'windows-2019'
+        node: '20.18.0'
+        ptrcompress: true
 
       macos_arm64:
         imageName: 'macOS-15'
         node: '20.18.0'
         arch: 'arm64'
         ptrcompress: false
+      macos_x64:
+        imageName: 'macOS-15'
+        node: '20.18.0'
+        arch: 'x64'
+        ptrcompress: false
+
+      # Pointer Compression builds are failing on MacOS with 20.18.0, have not dug into why
       # macos_arm64_ptrc:
       #   imageName: 'macOS-15'
       #   node: '20.18.0'
       #   arch: 'arm64'
       #   ptrcompress: true
-
-      # macos_x64:
-      #   imageName: 'macOS-15'
-      #   node: '20.18.0'
-      #   arch: 'x64'
-      #   ptrcompress: false
       # macos_x64_ptrc:
       #   imageName: 'macOS-15'
       #   node: '20.18.0'
       #   arch: 'x64'
       #   ptrcompress: true
-      
+
   pool:
     vmImage: $(imageName)
   steps:
@@ -78,9 +80,7 @@ jobs:
     displayName: setup docker for multi platform
     condition: contains(variables['Agent.JobName'], 'linux')
   ## linux and macos builds
-  # TODO replace this line
-  # - script: node js2bin.js --ci --container=true --pointer-compress=$(ptrcompress) --node=$(node) --size=6MB --size=4MB --upload --clean --arch=${ARCH}
-  - script: node js2bin.js --ci --container=true --pointer-compress=$(ptrcompress) --node=$(node) --size=6MB --clean --arch=${ARCH}
+  - script: node js2bin.js --ci --container=true --pointer-compress=$(ptrcompress) --node=$(node) --size=6MB --size=4MB --upload --clean --arch=${ARCH}
     displayName: Build base node binaries linux or macos
     condition: or(contains(variables['Agent.JobName'], 'linux'), contains(variables['Agent.JobName'], 'macos'))
     env:
@@ -92,8 +92,3 @@ jobs:
     condition: not(or(contains(variables['Agent.JobName'], 'linux'), contains(variables['Agent.JobName'], 'macos')))
     env:
       GITHUB_TOKEN: $(PersonalGithubToken)
-  - task: PublishPipelineArtifact@1
-    inputs:
-      targetPath: 'build/node-v20.18.0/out/Release/node'
-      artifact: 'node'
-      publishLocation: pipeline

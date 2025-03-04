@@ -3,7 +3,6 @@ const { log, download, upload, fetch, mkdirp, rmrf, copyFileAsync, runCommand, r
 const { gzipSync, createGunzip } = require('zlib');
 const { join, dirname, basename, resolve } = require('path');
 const fs = require('fs');
-const path = require('path');
 const os = require('os');
 const tar = require('tar-fs');
 const pkg = require('../package.json');
@@ -140,9 +139,6 @@ class NodeJsBuilder {
       Authorization: 'token ' + process.env.GITHUB_TOKEN
     };
     return p
-      // TODO use $BUILD_REPOSITORY_URI? and/or allow for command line option to set this?
-      // Guessing that will look like https://github.com/criblio/js2bin.git and we will have to massage it
-      // See https://learn.microsoft.com/en-us/azure/devops/pipelines/build/variables?view=azure-devops&tabs=yaml
       .then(() => fetch(`https://api.github.com/repos/criblio/js2bin/releases/tags/v${pkg.version}`, headers))
       .then(JSON.parse)
       .then(p => p.upload_url.split('{')[0])
