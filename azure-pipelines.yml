@@ -55,6 +55,14 @@ jobs:
 
   pool:
     vmImage: $(imageName)
+
+  variables:
+    # Do not attempt to upload to the Github Release when building a PR
+    ${{ if eq(variables['Build.Reason'], 'PullRequest') }}:
+      ci_args: ''
+    ${{ else }}:
+      ci_args: '--upload'
+
   steps:
   - task: UsePythonVersion@0
     displayName: Setup Python
@@ -80,15 +88,20 @@ jobs:
     displayName: setup docker for multi platform
     condition: contains(variables['Agent.JobName'], 'linux')
   ## linux and macos builds
-  - script: node js2bin.js --ci --container=true --pointer-compress=$(ptrcompress) --node=$(node) --size=6MB --size=4MB --upload --clean --arch=${ARCH}
+  - script: node js2bin.js --ci --container=true --pointer-compress=$(ptrcompress) --node=$(node) --size=6MB --size=4MB --clean --arch=$(arch) --cache $(ci_args)
     displayName: Build base node binaries linux or macos
     condition: or(contains(variables['Agent.JobName'], 'linux'), contains(variables['Agent.JobName'], 'macos'))
     env:
       GITHUB_TOKEN: $(PersonalGithubToken)
-      ARCH: $(arch)
-  ## non-linux builds
-  - script: node js2bin.js --ci --container=true --pointer-compress=$(ptrcompress) --node=$(node) --size=6MB --size=4MB --upload --clean
+  ## other builds
+  - script: node js2bin.js --ci --container=true --pointer-compress=$(ptrcompress) --node=$(node) --size=6MB --size=4MB --clean --cache $(ci_args)
     displayName: Build base node binaries non-linux
     condition: not(or(contains(variables['Agent.JobName'], 'linux'), contains(variables['Agent.JobName'], 'macos')))
     env:
       GITHUB_TOKEN: $(PersonalGithubToken)
+  # keep the built binaries
+  - task: PublishPipelineArtifact@1
+    inputs:
+      targetPath: cache
+      artifact: $(System.JobName)
+      publishLocation: pipeline
