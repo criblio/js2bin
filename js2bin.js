@@ -13,7 +13,7 @@ command-args: take the form of --name=value
 --build: embed your application into the precompiled NodeJS binary.
   --node:     NodeJS version(s) to use, can specify more than one. 
               e.g. --node=10.16.0 --node=12.4.0
-  --platform: Platform(s) to build for, can specify more than one. 
+  --platform: Platform(s) to build for, can specify more than one.
               e.g. --platform=linux --platform=darwin
   --app:      Path to your (bundled) application. 
               e.g. --app=/path/to/app/index.js
@@ -23,7 +23,6 @@ command-args: take the form of --name=value
               e.g. --dir=/tmp/js2bin
   --cache     (opt) Cache any pre-built binaries used, to avoid redownload
   --arch:     (opt) Architecture to build for
-
 
 --ci: build NodeJS with preallocated space for embedding applications
   --node: NodeJS version to build from source, can specify more than one. 

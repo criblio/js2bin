@@ -3,7 +3,6 @@ const { log, download, upload, fetch, mkdirp, rmrf, copyFileAsync, runCommand, r
 const { gzipSync, createGunzip } = require('zlib');
 const { join, dirname, basename, resolve } = require('path');
 const fs = require('fs');
-const path = require('path');
 const os = require('os');
 const tar = require('tar-fs');
 const pkg = require('../package.json');
@@ -36,6 +35,12 @@ const prettyArch = {
   ia32: 'x86',
   x32: 'x86',
   x64: 'x64'
+};
+
+// keys are expected to come from values of `prettyArch`
+const darwinArch = {
+  arm64: 'arm64',
+  x64: 'x86_64',
 };
 
 function buildName(platform, arch, placeHolderSizeMB, version) {
@@ -275,6 +280,15 @@ class NodeJsBuilder {
       .then(() => {
         if (isWindows) { return runCommand(this.make, makeArgs, this.nodeSrcDir); }
         if (isDarwin) {
+          let buildArch = darwinArch[NodeJsBuilder.getArch(arch)];
+          if (!buildArch) {
+            log(`Unrecogized arch '${arch}' for darwin, but we'll try it anyway`);
+            buildArch = arch;
+          }
+          configArgs.push(`--dest-cpu=${buildArch}`);
+          // For some reason, configure.py does not set these when given the
+          // --dest-cpu argument. Maybe we can patch it to do so?
+          makeArgs.push(`CPPFLAGS=-arch ${buildArch}`, `LDFLAGS=-arch ${buildArch}`);
           return runCommand(this.configure, configArgs, this.nodeSrcDir)
             .then(() => runCommand(this.make, makeArgs, this.nodeSrcDir));
         }

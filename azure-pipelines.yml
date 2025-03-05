@@ -3,10 +3,11 @@ jobs:
   timeoutInMinutes: 0
   strategy:
     matrix:
-      linux_arm64:
-        imageName: 'ubuntu-20.04'
-        arch: 'linux/arm64'
-        node: '20.18.0'
+      # We currently build this outside Azure because it is so slow it goes over the 6h job limit there.
+      # linux_arm64:
+      #   imageName: 'ubuntu-20.04'
+      #   arch: 'linux/arm64'
+      #   node: '20.18.0'
 
       linux_amd64:
         imageName: 'ubuntu-20.04'
@@ -29,16 +30,39 @@ jobs:
         node: '20.18.0'
         ptrcompress: true
 
-      # mac:
-      #   imageName: 'macos-10.14'
-      #   node: '18.15.0'
+      macos_arm64:
+        imageName: 'macOS-15'
+        node: '20.18.0'
+        arch: 'arm64'
+        ptrcompress: false
+      macos_x64:
+        imageName: 'macOS-15'
+        node: '20.18.0'
+        arch: 'x64'
+        ptrcompress: false
 
-      # windows_2015:
-      #   imageName: 'vs2017-win2016'
-#      alpine:
-#        imageName: 'ubuntu-16.04'
+      # Pointer Compression builds are failing on MacOS with 20.18.0, have not dug into why
+      # macos_arm64_ptrc:
+      #   imageName: 'macOS-15'
+      #   node: '20.18.0'
+      #   arch: 'arm64'
+      #   ptrcompress: true
+      # macos_x64_ptrc:
+      #   imageName: 'macOS-15'
+      #   node: '20.18.0'
+      #   arch: 'x64'
+      #   ptrcompress: true
+
   pool:
     vmImage: $(imageName)
+
+  variables:
+    # Do not attempt to upload to the Github Release when building a PR
+    ${{ if eq(variables['Build.Reason'], 'PullRequest') }}:
+      ci_args: ''
+    ${{ else }}:
+      ci_args: '--upload'
+
   steps:
   - task: UsePythonVersion@0
     displayName: Setup Python
@@ -63,16 +87,21 @@ jobs:
   - script: docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
     displayName: setup docker for multi platform
     condition: contains(variables['Agent.JobName'], 'linux')
-  ## linux builds
-  - script: node js2bin.js --ci --container=true --pointer-compress=$(ptrcompress) --node=$(node) --size=6MB --size=4MB --upload --clean --arch=${ARCH}
-    displayName: Build base node binaries linux
-    condition: contains(variables['Agent.JobName'], 'linux')
+  ## linux and macos builds
+  - script: node js2bin.js --ci --container=true --pointer-compress=$(ptrcompress) --node=$(node) --size=6MB --size=4MB --clean --arch=$(arch) --cache $(ci_args)
+    displayName: Build base node binaries linux or macos
+    condition: or(contains(variables['Agent.JobName'], 'linux'), contains(variables['Agent.JobName'], 'macos'))
     env:
       GITHUB_TOKEN: $(PersonalGithubToken)
-      ARCH: $(arch)
-  ## non-linux builds
-  - script: node js2bin.js --ci --container=true --pointer-compress=$(ptrcompress) --node=$(node) --size=6MB --size=4MB --upload --clean
+  ## other builds
+  - script: node js2bin.js --ci --container=true --pointer-compress=$(ptrcompress) --node=$(node) --size=6MB --size=4MB --clean --cache $(ci_args)
     displayName: Build base node binaries non-linux
-    condition: not(contains(variables['Agent.JobName'], 'linux'))
+    condition: not(or(contains(variables['Agent.JobName'], 'linux'), contains(variables['Agent.JobName'], 'macos')))
     env:
       GITHUB_TOKEN: $(PersonalGithubToken)
+  # keep the built binaries
+  - task: PublishPipelineArtifact@1
+    inputs:
+      targetPath: cache
+      artifact: $(System.JobName)
+      publishLocation: pipeline
