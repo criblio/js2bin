@@ -237,19 +237,19 @@ class NodeJsBuilder {
     return runCommand('df', ['-h']);
   }
 
-  buildInContainer() {
+  buildInContainer(ptrCompression) {
     const containerTag = `cribl/js2bin-builder:${this.builderImageVersion}`;
     return runCommand(
         'docker', ['run',
           '-v', `${process.cwd()}:/js2bin/`,
           '-t', containerTag,
           '/bin/bash', '-c',
-        `source /opt/rh/devtoolset-10/enable && cd /js2bin && npm install && ./js2bin.js --ci --node=${this.version} --size=${this.placeHolderSizeMB}MB`
+        `source /opt/rh/devtoolset-10/enable && cd /js2bin && npm install && ./js2bin.js --ci --node=${this.version} --size=${this.placeHolderSizeMB}MB ${ptrCompression ? '--pointer-compress=true' : ''}`
         ]
       );
   }
 
-  buildInContainerNonX64(arch) {
+  buildInContainerNonX64(arch, ptrCompression) {
     const containerTag = `cribl/js2bin-builder:${this.builderImageVersion}-nonx64`;
     return runCommand(
         'docker', ['run',
@@ -257,7 +257,7 @@ class NodeJsBuilder {
           '-v', `${process.cwd()}:/js2bin/`,
           '-t', containerTag,
           '/bin/bash', '-c',
-          `source /opt/rh/devtoolset-10/enable && cd /js2bin && npm install && ./js2bin.js --ci --node=${this.version} --size=${this.placeHolderSizeMB}MB`
+          `source /opt/rh/devtoolset-10/enable && cd /js2bin && npm install && ./js2bin.js --ci --node=${this.version} --size=${this.placeHolderSizeMB}MB ${ptrCompression ? '--pointer-compress=true' : ''}`
         ]
       );
   }
@@ -300,9 +300,9 @@ class NodeJsBuilder {
             .then(() => runCommand(this.make, makeArgs, this.nodeSrcDir, cfgMakeEnv));
         }
         if (arch !== 'linux/amd64') {
-          return this.buildInContainerNonX64(arch);
+          return this.buildInContainerNonX64(arch, ptrCompression);
         }
-        return this.buildInContainer();
+        return this.buildInContainer(ptrCompression);
       })
       .then(() => this.uploadNodeBinary(undefined, uploadBuild, cache, arch, ptrCompression))
       .then(() => this.printDiskUsage())
