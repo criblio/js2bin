@@ -268,7 +268,7 @@ class NodeJsBuilder {
   // 4. process mainAppFile (gzip, base64 encode it) - could be a placeholder file
   // 5. kick off ./configure & build
   buildFromSource(uploadBuild, cache, container, arch, ptrCompression) {
-    const makeArgs = isWindows ? ['x64', 'no-cctest'] : [`-j${os.cpus().length}`];
+    const makeArgs = isWindows ? ['x64', 'no-cctest', 'clang-cl'] : [`-j${os.cpus().length}`];
     const configArgs = [];
     if(ptrCompression) {
       if(isWindows) makeArgs.push('v8_ptr_compress');
