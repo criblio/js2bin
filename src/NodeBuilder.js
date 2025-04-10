@@ -218,9 +218,10 @@ class NodeJsBuilder {
     //   this.nodePath('configure.py'),
     //   join(this.patchDir, 'configure.py.patch'));
 
-    isWindows && await patchFile(
-      this.nodePath('vcbuild.bat'),
-      join(this.patchDir, 'vcbuild.bat.patch'));
+    if (isWindows) {
+      await patchFile(this.nodePath('vcbuild.bat'), join(this.patchDir, 'vcbuild.bat.patch'));
+      await patchFile(this.nodePath('deps', 'v8', 'include', 'v8config.h'), join(this.patchDir, 'v8config.patch'));
+    }
 
     isLinux && await patchFile(
       this.nodePath('deps','cares','config','linux','ares_config.h'),
@@ -268,7 +269,7 @@ class NodeJsBuilder {
   // 4. process mainAppFile (gzip, base64 encode it) - could be a placeholder file
   // 5. kick off ./configure & build
   buildFromSource(uploadBuild, cache, container, arch, ptrCompression) {
-    const makeArgs = isWindows ? ['x64', 'no-cctest', 'clang-cl'] : [`-j${os.cpus().length}`];
+    const makeArgs = isWindows ? ['x64', 'no-cctest'] : [`-j${os.cpus().length}`];
     const configArgs = [];
     if(ptrCompression) {
       if(isWindows) makeArgs.push('v8_ptr_compress');
