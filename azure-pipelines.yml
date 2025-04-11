@@ -83,36 +83,21 @@ jobs:
     displayName: Install Windows Assembler (NASM)
     condition: contains(variables['Agent.JobName'], 'windows')
   - script: |
-      echo Freeing disk space on Azure Pipelines Windows Agent...
+      @echo off
+      setlocal enabledelayedexpansion
 
-      rem Remove .NET SDKs
-      rmdir /s /q "C:\Program Files\dotnet"
-      rmdir /s /q "C:\Program Files (x86)\dotnet"
+      echo Checking for largest folders...
 
-      rem Remove Java SDKs
-      rmdir /s /q "C:\Program Files\Java"
-      rmdir /s /q "C:\Program Files (x86)\Java"
-
-      rem Remove Chocolatey packages
-      rmdir /s /q "C:\ProgramData\chocolatey\lib"
-
-      rem Optional: Remove Android SDK (if not needed)
-      rmdir /s /q "C:\Android"
-
-      rem Remove Windows Temp Files
-      rmdir /s /q "%LOCALAPPDATA%\Temp"
-
-      rem Remove npm cache if it exists
-      if exist "%APPDATA%\npm-cache" (
-        rmdir /s /q "%APPDATA%\npm-cache"
+      for /d %%F in (D:\*) do (
+          set size=0
+          for /r "%%F" %%G in (*) do (
+              set /a size+=%%~zG
+          )
+          echo %%F: !size! bytes
       )
 
-      rem Run garbage collection using a small VBScript trick
-      echo Set obj = CreateObject("Scripting.GarbageCollector") > %TEMP%\gc.vbs
-      echo obj.Collect >> %TEMP%\gc.vbs
-      cscript //nologo %TEMP%\gc.vbs
-      del %TEMP%\gc.vbs
-    displayName: Free Disk Space
+      endlocal
+    displayName: Check for largest folders
     condition: contains(variables['Agent.JobName'], 'windows')
   - script: npm ci
     displayName: Install dependencies
