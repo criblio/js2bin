@@ -72,7 +72,7 @@ class NodeJsBuilder {
     this.cacheDir = join(cwd || process.cwd(), 'cache');
     this.resultFile = isWindows ? join(this.nodeSrcDir, 'Release', 'node.exe') : join(this.nodeSrcDir, 'out', 'Release', 'node');
     this.placeHolderSizeMB = -1;
-    this.builderImageVersion = 2;
+    this.builderImageVersion = 3;
   }
 
   static platform() {
@@ -239,7 +239,7 @@ class NodeJsBuilder {
   }
 
   buildInContainer(ptrCompression) {
-    const containerTag = `cribl/js2bin-builder:${this.builderImageVersion}`;
+    const containerTag = `mbiesekcribl/js2bin-builder:${this.builderImageVersion}`;
     return runCommand(
         'docker', ['run',
           '-v', `${process.cwd()}:/js2bin/`,
@@ -251,7 +251,7 @@ class NodeJsBuilder {
   }
 
   buildInContainerNonX64(arch, ptrCompression) {
-    const containerTag = `cribl/js2bin-builder:${this.builderImageVersion}-nonx64`;
+    const containerTag = `mbiesekcribl/js2bin-builder:${this.builderImageVersion}-nonx64`;
     return runCommand(
         'docker', ['run',
           '--platform', arch,
