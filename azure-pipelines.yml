@@ -82,34 +82,37 @@ jobs:
   - script: choco install nasm -fy
     displayName: Install Windows Assembler (NASM)
     condition: contains(variables['Agent.JobName'], 'windows')
-  - powershell: |
-      Write-Host "Freeing disk space on Azure Pipelines Windows Agent..."
+  - script: |
+      echo Freeing disk space on Azure Pipelines Windows Agent...
 
-      # Remove .NET SDKs
-      Remove-Item -Recurse -Force "C:\Program Files\dotnet" -ErrorAction SilentlyContinue
-      Remove-Item -Recurse -Force "C:\Program Files (x86)\dotnet" -ErrorAction SilentlyContinue
+      rem Remove .NET SDKs
+      rmdir /s /q "C:\Program Files\dotnet"
+      rmdir /s /q "C:\Program Files (x86)\dotnet"
 
-      # Remove Java SDKs
-      Remove-Item -Recurse -Force "C:\Program Files\Java" -ErrorAction SilentlyContinue
-      Remove-Item -Recurse -Force "C:\Program Files (x86)\Java" -ErrorAction SilentlyContinue
+      rem Remove Java SDKs
+      rmdir /s /q "C:\Program Files\Java"
+      rmdir /s /q "C:\Program Files (x86)\Java"
 
-      # Remove Chocolatey packages
-      Remove-Item -Recurse -Force "C:\ProgramData\chocolatey\lib" -ErrorAction SilentlyContinue
+      rem Remove Chocolatey packages
+      rmdir /s /q "C:\ProgramData\chocolatey\lib"
 
-      # Optional: Remove Android SDK (if not needed)
-      Remove-Item -Recurse -Force "C:\Android" -ErrorAction SilentlyContinue
+      rem Optional: Remove Android SDK (if not needed)
+      rmdir /s /q "C:\Android"
 
-      # Remove Windows Temp Files
-      Remove-Item -Recurse -Force "$env:LOCALAPPDATA\Temp" -ErrorAction SilentlyContinue
+      rem Remove Windows Temp Files
+      rmdir /s /q "%LOCALAPPDATA%\Temp"
 
-      # Free unused cache space from npm
-      if (Test-Path "$env:APPDATA\npm-cache") {
-        Remove-Item -Recurse -Force "$env:APPDATA\npm-cache" -ErrorAction SilentlyContinue
-      }
+      rem Remove npm cache if it exists
+      if exist "%APPDATA%\npm-cache" (
+        rmdir /s /q "%APPDATA%\npm-cache"
+      )
 
-      # Run garbage collection to clean up memory
-      [System.GC]::Collect()
-    displayName: Free disk space on Windows
+      rem Run garbage collection using a small VBScript trick
+      echo Set obj = CreateObject("Scripting.GarbageCollector") > %TEMP%\gc.vbs
+      echo obj.Collect >> %TEMP%\gc.vbs
+      cscript //nologo %TEMP%\gc.vbs
+      del %TEMP%\gc.vbs
+    displayName: Free Disk Space
     condition: contains(variables['Agent.JobName'], 'windows')
   - script: npm ci
     displayName: Install dependencies
