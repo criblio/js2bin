@@ -82,6 +82,35 @@ jobs:
   - script: choco install nasm -fy
     displayName: Install Windows Assembler (NASM)
     condition: contains(variables['Agent.JobName'], 'windows')
+  - powershell: |
+      Write-Host "Freeing disk space on Azure Pipelines Windows Agent..."
+
+      # Remove .NET SDKs
+      Remove-Item -Recurse -Force "C:\Program Files\dotnet" -ErrorAction SilentlyContinue
+      Remove-Item -Recurse -Force "C:\Program Files (x86)\dotnet" -ErrorAction SilentlyContinue
+
+      # Remove Java SDKs
+      Remove-Item -Recurse -Force "C:\Program Files\Java" -ErrorAction SilentlyContinue
+      Remove-Item -Recurse -Force "C:\Program Files (x86)\Java" -ErrorAction SilentlyContinue
+
+      # Remove Chocolatey packages
+      Remove-Item -Recurse -Force "C:\ProgramData\chocolatey\lib" -ErrorAction SilentlyContinue
+
+      # Optional: Remove Android SDK (if not needed)
+      Remove-Item -Recurse -Force "C:\Android" -ErrorAction SilentlyContinue
+
+      # Remove Windows Temp Files
+      Remove-Item -Recurse -Force "$env:LOCALAPPDATA\Temp" -ErrorAction SilentlyContinue
+
+      # Free unused cache space from npm
+      if (Test-Path "$env:APPDATA\npm-cache") {
+        Remove-Item -Recurse -Force "$env:APPDATA\npm-cache" -ErrorAction SilentlyContinue
+      }
+
+      # Run garbage collection to clean up memory
+      [System.GC]::Collect()
+    displayName: Free disk space on Windows
+    condition: contains(variables['Agent.JobName'], 'windows')
   - script: npm ci
     displayName: Install dependencies
   - script: docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
