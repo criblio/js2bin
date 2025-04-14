@@ -79,6 +79,20 @@ jobs:
   #- script: choco install visualcpp-build-tools --version 14.0.25420.1 -fy && npm config set msvs_version 2015
   #  condition: contains(variables['Agent.JobName'], 'windows_2015')
   #  displayName: Install Windows build dependencies
+  - script: |
+      echo "Currently selected Xcode:"
+      xcode-select -p
+      xcodebuild -version
+    displayName: 'Show Current Xcode Version'
+    condition: contains(variables['Agent.JobName'], 'macos')
+  - script: |
+      sudo xcode-select -s /Applications/Xcode_16.2.app
+      xcodebuild -version
+      echo "Currently selected Xcode:"
+      xcode-select -p
+      xcodebuild -version
+    displayName: 'Select Xcode 16.2'
+    condition: contains(variables['Agent.JobName'], 'macos')
   - script: choco install nasm -fy
     displayName: Install Windows Assembler (NASM)
     condition: contains(variables['Agent.JobName'], 'windows')
