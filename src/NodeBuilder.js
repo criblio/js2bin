@@ -214,7 +214,7 @@ class NodeJsBuilder {
       this.nodePath('node.gyp'),
       join(this.patchDir, 'node.gyp.patch'));
 
-    // await patchFile(
+    // await patchFile( 
     //   this.nodePath('configure.py'),
     //   join(this.patchDir, 'configure.py.patch'));
 
