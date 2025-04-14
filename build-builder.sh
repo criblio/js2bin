@@ -3,7 +3,7 @@ docker pull moby/buildkit:buildx-stable-1
 if [ $(docker buildx ls | grep js2bin-builder  | wc -l) -eq 0 ]; then
     docker buildx create --name js2bin-builder
 fi
-docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
+docker run --rm --privileged tonistiigi/binfmt --install all
 docker buildx use js2bin-builder
 BUILDER_IMAGE_VERSION="3"
 ARCH=$(uname -m)
