@@ -85,6 +85,14 @@ jobs:
       xcodebuild -version
     displayName: 'Show Current Xcode Version'
     condition: contains(variables['Agent.JobName'], 'macos')
+  - script: |
+      sudo xcode-select -s /Applications/Xcode_16.2.app
+      xcodebuild -version
+      echo "Currently selected Xcode:"
+      xcode-select -p
+      xcodebuild -version
+    displayName: 'Select Xcode 16.2'
+    condition: contains(variables['Agent.JobName'], 'macos')
   - script: choco install nasm -fy
     displayName: Install Windows Assembler (NASM)
     condition: contains(variables['Agent.JobName'], 'windows')
