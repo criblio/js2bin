@@ -1,7 +1,7 @@
 
 const { log, download, upload, fetch, mkdirp, rmrf, copyFileAsync, runCommand, renameAsync, patchFile } = require('./util');
 const { gzipSync, createGunzip } = require('zlib');
-const { join, dirname, basename, resolve } = require('path');
+const { join, dirname, basename, parse, resolve } = require('path');
 const fs = require('fs');
 const os = require('os');
 const tar = require('tar-fs');
@@ -234,7 +234,10 @@ class NodeJsBuilder {
   }
 
   printDiskUsage() {
-    if (isWindows) { return runCommand('fsutil', ['volume', 'diskfree', 'd:']); }
+    if (isWindows) {
+      const parsedPath = parse(this.resultFile);
+      return runCommand('fsutil', ['volume', 'diskfree', parsedPath.root]);
+    }
     return runCommand('df', ['-h']);
   }
 
