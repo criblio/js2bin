@@ -21,14 +21,15 @@ jobs:
         node: '22.14.0'
         ptrcompress: true
 
-      windows_2022:
-        imageName: 'windows-2022'
-        node: '22.14.0'
-        ptrcompress: false
-      windows_2022_ptrc:
-        imageName: 'windows-2022'
-        node: '22.14.0'
-        ptrcompress: true
+      # We currently build this outside of Azure due to storage limitations on Azure Pipelines hosted agents.
+      # windows_2022:
+      #   imageName: 'windows-2022'
+      #   node: '22.14.0'
+      #   ptrcompress: false
+      # windows_2022_ptrc:
+      #   imageName: 'windows-2022'
+      #   node: '22.14.0'
+      #   ptrcompress: true
 
       macos_arm64:
         imageName: 'macOS-15'
