@@ -15,11 +15,12 @@ jobs:
         node: '22.14.0'
         ptrcompress: false
 
-      linux_amd64_ptrc:
-        imageName: 'ubuntu-20.04'
-        arch: 'linux/amd64'
-        node: '22.14.0'
-        ptrcompress: true
+      # Pointer Compression builds are failing on Linux
+      # linux_amd64_ptrc:
+      #   imageName: 'ubuntu-20.04'
+      #   arch: 'linux/amd64'
+      #   node: '22.14.0'
+      #   ptrcompress: true
 
       # We currently build this outside of Azure due to storage limitations on Azure Pipelines hosted agents.
       # windows_2022:
