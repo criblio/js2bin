@@ -1,5 +1,5 @@
---- src/node.cc
-+++ src/node.cc
+--- a/src/node.cc
++++ b/src/node.cc
 @@ -377,6 +377,14 @@ MaybeLocal<Value> StartExecution(Environment* env, StartExecutionCallback cb) {
      return env->RunSnapshotDeserializeMain();
    }

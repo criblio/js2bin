@@ -1,5 +1,5 @@
 --- /dev/null
-+++ lib/internal/main/run_third_party_main.js
++++ b/lib/internal/main/run_third_party_main.js
 @@ -0,0 +1,14 @@
 +'use strict';
 +

@@ -1,7 +1,7 @@
 disable usage of <sys/random.h>
 
---- deps/cares/config/linux/ares_config.h
-+++ deps/cares/config/linux/ares_config.h
+--- a/deps/cares/config/linux/ares_config.h
++++ b/deps/cares/config/linux/ares_config.h
 @@ -116,7 +116,9 @@
  #define HAVE_GETNAMEINFO 1
 

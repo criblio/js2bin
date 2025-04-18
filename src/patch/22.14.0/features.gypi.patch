@@ -1,0 +1,22 @@
+--- a/tools/v8_gypfiles/features.gypi
++++ b/tools/v8_gypfiles/features.gypi
+@@ -157,6 +157,9 @@
+     'v8_enable_pointer_compression_shared_cage%': 0,
+     'v8_enable_31bit_smis_on_64bit_arch%': 0,
+ 
++    # Enable external code space (sets -dV8_EXTERNAL_CODE_SPACE).
++    'v8_enable_external_code_space%': 0,
++
+     # Sets -dV8_SHORT_BUILTIN_CALLS
+     'v8_enable_short_builtin_calls%': 0,
+ 
+@@ -384,6 +387,9 @@
+       ['v8_enable_sandbox==1', {
+         'defines': ['V8_ENABLE_SANDBOX',],
+       }],
++      ['v8_enable_external_code_space==1', {
++        'defines': ['V8_EXTERNAL_CODE_SPACE',],
++      }],
+       ['v8_enable_object_print==1', {
+         'defines': ['OBJECT_PRINT',],
+       }],

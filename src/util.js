@@ -79,16 +79,17 @@ function runCommand(command, args = [], cwd = undefined, env = undefined, verbos
   });
 }
 
-async function patchFile(file, patchFile) {
-  if(!fs.existsSync(patchFile)) return; // noop
+async function patchFile(baseDir, patchFile) {
+  if (!fs.existsSync(patchFile)) return; // noop
   await new Promise((resolve, reject) => {
     const proc = spawn(
       'patch',
       [
-        '-uN',
-        file
+        '-uN', // Unified patch format
+        '-p1' // Adjust the file path by stripping leading directories (a/ and b/)
       ],
       {
+        cwd: baseDir, // Apply the patches in the provided directory
         stdio: [
           null,
           'inherit',

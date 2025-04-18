@@ -1,8 +1,8 @@
 expose option for configuring pointer compression
 
 
---- vcbuild.bat
-+++ vcbuild.bat
+--- a/vcbuild.bat
++++ b/vcbuild.bat
 @@ -72,6 +72,7 @@ set doc=
  set extra_msbuild_args=
  set compile_commands=
