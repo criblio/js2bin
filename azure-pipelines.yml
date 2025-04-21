@@ -12,32 +12,34 @@ jobs:
       linux_amd64:
         imageName: 'ubuntu-20.04'
         arch: 'linux/amd64'
-        node: '20.18.0'
+        node: '22.14.0'
         ptrcompress: false
 
-      linux_amd64_ptrc:
-        imageName: 'ubuntu-20.04'
-        arch: 'linux/amd64'
-        node: '20.18.0'
-        ptrcompress: true
+      # Pointer Compression builds are failing on Linux
+      # linux_amd64_ptrc:
+      #   imageName: 'ubuntu-20.04'
+      #   arch: 'linux/amd64'
+      #   node: '22.14.0'
+      #   ptrcompress: true
 
-      windows_2019:
-        imageName: 'windows-2019'
-        node: '20.18.0'
-        ptrcompress: false
-      windows_2019_ptrc:
-        imageName: 'windows-2019'
-        node: '20.18.0'
-        ptrcompress: true
+      # We currently build this outside of Azure due to storage limitations on Azure Pipelines hosted agents.
+      # windows_2022:
+      #   imageName: 'windows-2022'
+      #   node: '22.14.0'
+      #   ptrcompress: false
+      # windows_2022_ptrc:
+      #   imageName: 'windows-2022'
+      #   node: '22.14.0'
+      #   ptrcompress: true
 
       macos_arm64:
         imageName: 'macOS-15'
-        node: '20.18.0'
+        node: '22.14.0'
         arch: 'arm64'
         ptrcompress: false
       macos_x64:
         imageName: 'macOS-15'
-        node: '20.18.0'
+        node: '22.14.0'
         arch: 'x64'
         ptrcompress: false
 
@@ -79,6 +81,20 @@ jobs:
   #- script: choco install visualcpp-build-tools --version 14.0.25420.1 -fy && npm config set msvs_version 2015
   #  condition: contains(variables['Agent.JobName'], 'windows_2015')
   #  displayName: Install Windows build dependencies
+  - script: |
+      echo "Currently selected Xcode:"
+      xcode-select -p
+      xcodebuild -version
+    displayName: 'Show Current Xcode Version'
+    condition: contains(variables['Agent.JobName'], 'macos')
+  - script: |
+      sudo xcode-select -s /Applications/Xcode_16.2.app
+      xcodebuild -version
+      echo "Currently selected Xcode:"
+      xcode-select -p
+      xcodebuild -version
+    displayName: 'Select Xcode 16.2'
+    condition: contains(variables['Agent.JobName'], 'macos')
   - script: choco install nasm -fy
     displayName: Install Windows Assembler (NASM)
     condition: contains(variables['Agent.JobName'], 'windows')

@@ -1,0 +1,28 @@
+expose option for configuring pointer compression
+
+
+--- a/vcbuild.bat
++++ b/vcbuild.bat
+@@ -72,6 +72,7 @@ set doc=
+ set extra_msbuild_args=
+ set compile_commands=
+ set exit_code=0
++set v8_ptr_compress=
+ 
+ :next-arg
+ if "%1"=="" goto args-done
+@@ -146,6 +147,7 @@ if /i "%1"=="cctest"        set cctest=1&goto arg-ok
+ if /i "%1"=="openssl-no-asm"   set openssl_no_asm=1&goto arg-ok
+ if /i "%1"=="no-shared-roheap" set no_shared_roheap=1&goto arg-ok
+ if /i "%1"=="doc"           set doc=1&goto arg-ok
++if /i "%1"=="v8_ptr_compress"   set v8_ptr_compress=1&goto arg-ok
+ if /i "%1"=="binlog"        set extra_msbuild_args=/binaryLogger:out\%config%\node.binlog&goto arg-ok
+ if /i "%1"=="compile-commands" set compile_commands=1&goto arg-ok
+ 
+@@ -206,6 +208,7 @@ if defined debug_nghttp2    set configure_flags=%configure_flags% --debug-nghttp
+ if defined openssl_no_asm   set configure_flags=%configure_flags% --openssl-no-asm
+ if defined no_shared_roheap set configure_flags=%configure_flags% --disable-shared-readonly-heap
+ if defined DEBUG_HELPER     set configure_flags=%configure_flags% --verbose
++if defined v8_ptr_compress  set configure_flags=%configure_flags% --experimental-enable-pointer-compression
+ if defined compile_commands set configure_flags=%configure_flags% -C
+ if "%target_arch%"=="x86" if "%PROCESSOR_ARCHITECTURE%"=="AMD64" set configure_flags=%configure_flags% --no-cross-compiling

@@ -15,13 +15,23 @@ RUN sed -i 's|mirror.centos.org/centos|vault.centos.org/altarch|g' /etc/yum.repo
 
 # use node 10 as it's guaranteed to run on CentOS6
 RUN yum-config-manager --enable rhel-server-rhscl-7-rpms && \
-    yum install -y devtoolset-10 python36 wget patch && \
+    yum install -y devtoolset-10 bzip2-devel libffi-devel patch wget zlib-devel && \
     wget -q https://nodejs.org/dist/v10.23.0/node-v10.23.0-linux-arm64.tar.gz && \
     gunzip node-v10.23.0-linux-arm64.tar.gz && tar xf node-v10.23.0-linux-arm64.tar && rm node-v10.23.0-linux-arm64.tar && \
     ln -s /node-v10.23.0-linux-arm64/bin/node /bin/node && \ 
-    ln -s /node-v10.23.0-linux-arm64/bin/npm /bin/npm && \
-    ln -fs /usr/bin/python3 /usr/bin/python 
+    ln -s /node-v10.23.0-linux-arm64/bin/npm /bin/npm
+
+# Build and install Python 3.9 as a prerequisite for building Node.js 24
+RUN PYTHON_VERSION=3.9.22 && \
+    wget https://www.python.org/ftp/python/$PYTHON_VERSION/Python-$PYTHON_VERSION.tgz && \
+    tar -xvf Python-$PYTHON_VERSION.tgz && \
+    cd Python-$PYTHON_VERSION && \
+    ./configure --prefix=/usr/local && \
+    make && \
+    make install && \
+    cd .. && \
+    rm -rf Python-$PYTHON_VERSION.tgz Python-$PYTHON_VERSION && \
+    ln -fs /usr/bin/python3 /usr/bin/python
 
 # to buid using this container you need to enable the right slc toolchain ie
 # scl enable devtoolset-8 '<your-build-command-here>'
-

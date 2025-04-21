@@ -1,7 +1,7 @@
 
 const { log, download, upload, fetch, mkdirp, rmrf, copyFileAsync, runCommand, renameAsync, patchFile } = require('./util');
 const { gzipSync, createGunzip } = require('zlib');
-const { join, dirname, basename, resolve } = require('path');
+const { join, dirname, basename, parse, resolve } = require('path');
 const fs = require('fs');
 const os = require('os');
 const tar = require('tar-fs');
@@ -72,7 +72,7 @@ class NodeJsBuilder {
     this.cacheDir = join(cwd || process.cwd(), 'cache');
     this.resultFile = isWindows ? join(this.nodeSrcDir, 'Release', 'node.exe') : join(this.nodeSrcDir, 'out', 'Release', 'node');
     this.placeHolderSizeMB = -1;
-    this.builderImageVersion = 2;
+    this.builderImageVersion = 3;
   }
 
   static platform() {
@@ -198,33 +198,28 @@ class NodeJsBuilder {
   }
 
   async patchThirdPartyMain() {
-    await patchFile(
-      this.nodePath('lib', 'internal', 'main', 'run_third_party_main.js'),
-      join(this.patchDir, 'run_third_party_main.js.patch'));
-    await patchFile(
-      this.nodePath('src', 'node.cc'),
-      join(this.patchDir, 'node.cc.patch'));
-    await patchFile(
-      this.nodePath('deps', 'uv', 'src', 'win', 'fs-event.c'),
-      join(this.patchDir, 'fs-event.c.patch'));
+    await patchFile(this.nodeSrcDir, join(this.patchDir, 'run_third_party_main.js.patch'));
+    await patchFile(this.nodeSrcDir, join(this.patchDir, 'node.cc.patch'));
+    await patchFile(this.nodeSrcDir, join(this.patchDir, 'fs-event.c.patch'));
   }
 
   async patchNodeCompileIssues() {
-    await patchFile(
-      this.nodePath('node.gyp'),
-      join(this.patchDir, 'node.gyp.patch'));
+    await patchFile(this.nodeSrcDir, join(this.patchDir, 'node.gyp.patch'));
 
-    await patchFile(
-      this.nodePath('configure.py'),
-      join(this.patchDir, 'configure.py.patch'));
+    if (isWindows) {
+      await patchFile(this.nodeSrcDir, join(this.patchDir, 'vcbuild.bat.patch'));
+      await patchFile(this.nodeSrcDir, join(this.patchDir, 'v8config.patch'));
+      // The following patches fix the memory leak when using pointer compression
+      // They are fixing both Linux and Windows, however, we only apply them to Windows to keep the blast radius small
+      await patchFile(this.nodeSrcDir, join(this.patchDir, 'configure.py.patch'));
+      await patchFile(this.nodeSrcDir, join(this.patchDir, 'features.gypi.patch'));
+      await patchFile(this.nodeSrcDir, join(this.patchDir, 'node_buffer.cc.patch'));
+      await patchFile(this.nodeSrcDir, join(this.patchDir, 'v8_backing_store_callers.patch'));
+    }
 
-    isWindows && await patchFile(
-      this.nodePath('vcbuild.bat'),
-      join(this.patchDir, 'vcbuild.bat.patch'));
-
-    isLinux && await patchFile(
-      this.nodePath('deps','cares','config','linux','ares_config.h'),
-      join(this.patchDir, 'no_rand_on_glibc.patch'));
+    if (isLinux) {
+      await patchFile(this.nodeSrcDir, join(this.patchDir, 'no_rand_on_glibc.patch'));
+    }
   }
 
   async applyPatches() {
@@ -233,23 +228,26 @@ class NodeJsBuilder {
   }
 
   printDiskUsage() {
-    if (isWindows) { return runCommand('fsutil', ['volume', 'diskfree', 'd:']); }
+    if (isWindows) {
+      const parsedPath = parse(this.resultFile);
+      return runCommand('fsutil', ['volume', 'diskfree', parsedPath.root]);
+    }
     return runCommand('df', ['-h']);
   }
 
-  buildInContainer() {
+  buildInContainer(ptrCompression) {
     const containerTag = `cribl/js2bin-builder:${this.builderImageVersion}`;
     return runCommand(
         'docker', ['run',
           '-v', `${process.cwd()}:/js2bin/`,
           '-t', containerTag,
           '/bin/bash', '-c',
-        `source /opt/rh/devtoolset-10/enable && cd /js2bin && npm install && ./js2bin.js --ci --node=${this.version} --size=${this.placeHolderSizeMB}MB`
+        `source /opt/rh/devtoolset-10/enable && cd /js2bin && npm install && ./js2bin.js --ci --node=${this.version} --size=${this.placeHolderSizeMB}MB ${ptrCompression ? '--pointer-compress=true' : ''}`
         ]
       );
   }
 
-  buildInContainerNonX64(arch) {
+  buildInContainerNonX64(arch, ptrCompression) {
     const containerTag = `cribl/js2bin-builder:${this.builderImageVersion}-nonx64`;
     return runCommand(
         'docker', ['run',
@@ -257,7 +255,7 @@ class NodeJsBuilder {
           '-v', `${process.cwd()}:/js2bin/`,
           '-t', containerTag,
           '/bin/bash', '-c',
-          `source /opt/rh/devtoolset-10/enable && cd /js2bin && npm install && ./js2bin.js --ci --node=${this.version} --size=${this.placeHolderSizeMB}MB`
+          `source /opt/rh/devtoolset-10/enable && cd /js2bin && npm install && ./js2bin.js --ci --node=${this.version} --size=${this.placeHolderSizeMB}MB ${ptrCompression ? '--pointer-compress=true' : ''}`
         ]
       );
   }
@@ -300,9 +298,9 @@ class NodeJsBuilder {
             .then(() => runCommand(this.make, makeArgs, this.nodeSrcDir, cfgMakeEnv));
         }
         if (arch !== 'linux/amd64') {
-          return this.buildInContainerNonX64(arch);
+          return this.buildInContainerNonX64(arch, ptrCompression);
         }
-        return this.buildInContainer();
+        return this.buildInContainer(ptrCompression);
       })
       .then(() => this.uploadNodeBinary(undefined, uploadBuild, cache, arch, ptrCompression))
       .then(() => this.printDiskUsage())

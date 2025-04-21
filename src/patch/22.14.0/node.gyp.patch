@@ -1,0 +1,13 @@
+disable building of cctest as it (a) it fails to build due to align_alloc and (b) it is just a waste of time
+
+--- a/node.gyp
++++ b/node.gyp
+@@ -1144,7 +1144,7 @@
+     }, # fuzz_strings
+     {
+       'target_name': 'cctest',
+-      'type': 'executable',
++      'type': 'none',
+ 
+       'dependencies': [
+         '<(node_lib_target_name)',
