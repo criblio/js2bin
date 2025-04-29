@@ -1,4 +1,3 @@
-
 const { log, download, upload, fetch, mkdirp, rmrf, copyFileAsync, runCommand, renameAsync, patchFile } = require('./util');
 const { gzipSync, createGunzip } = require('zlib');
 const { join, dirname, basename, parse, resolve } = require('path');
@@ -105,7 +104,7 @@ class NodeJsBuilder {
       .then(() => this.version.split('.')[0] >= 15 ? this.applyPatches() : Promise.resolve())
   }
 
-  downloadCachedBuild(platform, arch, placeHolderSizeMB) {
+  downloadCachedBuild(platform, arch, customDownloadUrl, placeHolderSizeMB) {
     placeHolderSizeMB = placeHolderSizeMB || this.placeHolderSizeMB;
     const name = buildName(platform, arch, placeHolderSizeMB, this.version);
     const filename = join(this.cacheDir, name);
@@ -113,7 +112,7 @@ class NodeJsBuilder {
       log(`build name=${name} already downloaded, using it`);
       return Promise.resolve(filename);
     }
-    const baseUrl = `https://github.com/criblio/js2bin/releases/download/v${pkg.version}/`;
+    const baseUrl = customDownloadUrl || `https://github.com/criblio/js2bin/releases/download/v${pkg.version}/`;
     const url = `${baseUrl}${name}`;
     return download(url, filename);
   }
@@ -238,26 +237,26 @@ class NodeJsBuilder {
   buildInContainer(ptrCompression) {
     const containerTag = `cribl/js2bin-builder:${this.builderImageVersion}`;
     return runCommand(
-        'docker', ['run',
-          '-v', `${process.cwd()}:/js2bin/`,
-          '-t', containerTag,
-          '/bin/bash', '-c',
+      'docker', ['run',
+        '-v', `${process.cwd()}:/js2bin/`,
+        '-t', containerTag,
+        '/bin/bash', '-c',
         `source /opt/rh/devtoolset-10/enable && cd /js2bin && npm install && ./js2bin.js --ci --node=${this.version} --size=${this.placeHolderSizeMB}MB ${ptrCompression ? '--pointer-compress=true' : ''}`
-        ]
-      );
+      ]
+    );
   }
 
   buildInContainerNonX64(arch, ptrCompression) {
     const containerTag = `cribl/js2bin-builder:${this.builderImageVersion}-nonx64`;
     return runCommand(
-        'docker', ['run',
-          '--platform', arch,
-          '-v', `${process.cwd()}:/js2bin/`,
-          '-t', containerTag,
-          '/bin/bash', '-c',
-          `source /opt/rh/devtoolset-10/enable && cd /js2bin && npm install && ./js2bin.js --ci --node=${this.version} --size=${this.placeHolderSizeMB}MB ${ptrCompression ? '--pointer-compress=true' : ''}`
-        ]
-      );
+      'docker', ['run',
+        '--platform', arch,
+        '-v', `${process.cwd()}:/js2bin/`,
+        '-t', containerTag,
+        '/bin/bash', '-c',
+        `source /opt/rh/devtoolset-10/enable && cd /js2bin && npm install && ./js2bin.js --ci --node=${this.version} --size=${this.placeHolderSizeMB}MB ${ptrCompression ? '--pointer-compress=true' : ''}`
+      ]
+    );
   }
 
   // 1. download node source
@@ -312,7 +311,7 @@ class NodeJsBuilder {
       .catch(err => this.printDiskUsage().then(() => { throw err; }));
   }
 
-  buildFromCached(platform = 'linux', arch = 'x64', outFile = undefined, cache = false, size) {
+  buildFromCached(platform = 'linux', arch = 'x64', outFile = undefined, cache = false, size, customDownloadUrl) {
     const mainAppFileCont = this.getAppContentToBundle();
     this.placeHolderSizeMB = Math.ceil(mainAppFileCont.length / 1024 / 1024); // 2, 4, 6, 8...
     if (this.placeHolderSizeMB % 2 !== 0) {
@@ -320,7 +319,7 @@ class NodeJsBuilder {
     }
     if (size) this.placeHolderSizeMB = parseInt( size.toUpperCase().replaceAll('MB', '') )
 
-    return this.downloadCachedBuild(platform, arch)
+    return this.downloadCachedBuild(platform, arch, customDownloadUrl)
       .then(cachedFile => {
         const placeholder = this.getPlaceholderContent(this.placeHolderSizeMB);
 

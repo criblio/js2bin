@@ -23,6 +23,8 @@ command-args: take the form of --name=value
               e.g. --dir=/tmp/js2bin
   --cache     (opt) Cache any pre-built binaries used, to avoid redownload
   --arch:     (opt) Architecture to build for
+  --download-url: (opt) Custom URL to download pre-built binaries from
+              e.g. --download-url=https://example.com/binaries/
 
 --ci: build NodeJS with preallocated space for embedding applications
   --node: NodeJS version to build from source, can specify more than one. 
@@ -99,7 +101,7 @@ if (args.build) {
         const arch = args.arch || 'x64';
         log(`building for version=${version}, plat=${plat} app=${app}} arch=${arch}`);
         const outName = args.name ? `${args.name}-${plat}-${arch}` : undefined;
-        return builder.buildFromCached(plat, arch, outName, args.cache, args.size);
+        return builder.buildFromCached(plat, arch, outName, args.cache, args.size, args['download-url']);
       });
     });
   });
