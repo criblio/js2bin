@@ -9,11 +9,11 @@ jobs:
       #   arch: 'linux/arm64'
       #   node: '20.18.0'
 
-      linux_amd64:
-        imageName: 'ubuntu-20.04'
-        arch: 'linux/amd64'
-        node: '22.14.0'
-        ptrcompress: false
+      # linux_amd64:
+      #   imageName: 'ubuntu-20.04'
+      #   arch: 'linux/amd64'
+      #   node: '22.14.0'
+      #   ptrcompress: false
 
       # Pointer Compression builds are failing on Linux
       # linux_amd64_ptrc:
@@ -34,12 +34,12 @@ jobs:
 
       macos_arm64:
         imageName: 'macOS-15'
-        node: '22.14.0'
+        node: '22.17.1'
         arch: 'arm64'
         ptrcompress: false
       macos_x64:
         imageName: 'macOS-15'
-        node: '22.14.0'
+        node: '22.17.1'
         arch: 'x64'
         ptrcompress: false
 

@@ -200,7 +200,6 @@ class NodeJsBuilder {
   async patchThirdPartyMain() {
     await patchFile(this.nodeSrcDir, join(this.patchDir, 'run_third_party_main.js.patch'));
     await patchFile(this.nodeSrcDir, join(this.patchDir, 'node.cc.patch'));
-    await patchFile(this.nodeSrcDir, join(this.patchDir, 'fs-event.c.patch'));
   }
 
   async patchNodeCompileIssues() {
@@ -212,7 +211,6 @@ class NodeJsBuilder {
       // The following patches fix the memory leak when using pointer compression
       // They are fixing both Linux and Windows, however, we only apply them to Windows to keep the blast radius small
       await patchFile(this.nodeSrcDir, join(this.patchDir, 'configure.py.patch'));
-      await patchFile(this.nodeSrcDir, join(this.patchDir, 'features.gypi.patch'));
       await patchFile(this.nodeSrcDir, join(this.patchDir, 'node_buffer.cc.patch'));
       await patchFile(this.nodeSrcDir, join(this.patchDir, 'v8_backing_store_callers.patch'));
     }
