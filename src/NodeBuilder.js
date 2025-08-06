@@ -220,9 +220,14 @@ class NodeJsBuilder {
     }
   }
 
+  async patchNodePerformance() {
+    await patchFile(this.nodeSrcDir, join(this.patchDir, 'patch-json-stringifier-cc.patch'));
+  }
+
   async applyPatches() {
     await this.patchThirdPartyMain();
     await this.patchNodeCompileIssues();
+    await this.patchNodePerformance();
   }
 
   printDiskUsage() {

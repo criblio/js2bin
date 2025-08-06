@@ -1,0 +1,153 @@
+diff --git a/deps/v8/src/json/json-stringifier.cc b/deps/v8/src/json/json-stringifier.cc
+index 30dfb25623..8e622cdacb 100644
+--- a/deps/v8/src/json/json-stringifier.cc
++++ b/deps/v8/src/json/json-stringifier.cc
+@@ -124,6 +124,11 @@ class JsonStringifier {
+   V8_INLINE bool CurrentPartCanFit(int length) {
+     return part_length_ - current_index_ > length;
+   }
++  // estimates the maximum number of chars that can fit in the remaining buffer
++  // assumes worst case scenario: each char is convereted in to 6
++  V8_INLINE int MaxCharsThatFit() {
++    return (part_length_ - current_index_) / 6;
++  }
+ 
+   // We make a rough estimate to find out if the current string can be
+   // serialized without allocating a new string part. The worst case length of
+@@ -326,7 +331,8 @@ class JsonStringifier {
+   // Returns whether any escape sequences were used.
+   template <typename SrcChar, typename DestChar, bool raw_json>
+   V8_INLINE static bool SerializeStringUnchecked_(
+-      base::Vector<const SrcChar> src, NoExtendBuilder<DestChar>* dest);
++      base::Vector<const SrcChar> src, NoExtendBuilder<DestChar>* dest,
++      int offset, int endOffset);
+ 
+   // Returns whether any escape sequences were used.
+   template <typename SrcChar, typename DestChar, bool raw_json>
+@@ -1369,12 +1375,13 @@ JsonStringifier::Result JsonStringifier::SerializeJSProxy(
+ 
+ template <typename SrcChar, typename DestChar, bool raw_json>
+ bool JsonStringifier::SerializeStringUnchecked_(
+-    base::Vector<const SrcChar> src, NoExtendBuilder<DestChar>* dest) {
++    base::Vector<const SrcChar> src, NoExtendBuilder<DestChar>* dest,
++    int offset, int endOffset) {
+   // Assert that base::uc16 character is not truncated down to 8 bit.
+   // The <base::uc16, char> version of this method must not be called.
+   DCHECK(sizeof(DestChar) >= sizeof(SrcChar));
+   bool required_escaping = false;
+-  for (int i = 0; i < src.length(); i++) {
++  for (int i = offset; i < endOffset; i++) {
+     SrcChar c = src[i];
+     if (raw_json || DoNotEscape(c)) {
+       dest->Append(c);
+@@ -1385,7 +1392,7 @@ bool JsonStringifier::SerializeStringUnchecked_(
+       required_escaping = true;
+       if (c <= 0xDBFF) {
+         // The current character is a leading surrogate.
+-        if (i + 1 < src.length()) {
++        if (i + 1 < endOffset) {
+           // There is a next character.
+           SrcChar next = src[i + 1];
+           if (base::IsInRange(next, static_cast<SrcChar>(0xDC00),
+@@ -1433,73 +1440,39 @@ bool JsonStringifier::SerializeStringUnchecked_(
+ template <typename SrcChar, typename DestChar, bool raw_json>
+ bool JsonStringifier::SerializeString_(Tagged<String> string,
+                                        const DisallowGarbageCollection& no_gc) {
+-  int length = string->length();
+   bool required_escaping = false;
+   if (!raw_json) Append<uint8_t, DestChar>('"');
+-  // We might be able to fit the whole escaped string in the current string
+-  // part, or we might need to allocate.
+-  base::Vector<const SrcChar> vector = string->GetCharVector<SrcChar>(no_gc);
+-  if V8_LIKELY (EscapedLengthIfCurrentPartFits(length)) {
++
++  // serialize the contents of the string by in chunks of chars that can fit in 
++  // the available buffer, extend the buffer only once full. Note that we need to 
++  // be conservative in the number of chars needed, eventhough in real life the 
++  // number of chars written out will be the ~ same as the number of chars in the 
++  // string. For example, if we have a buffer of 600 bytes available we can only 
++  // safely write 100 chars. If we have a string of 200 chars that needs no escaping
++  // then we can safely write it in chunks:
++  // chunk #1 will write 100 chars (remaining 500 bytes, which can fit 83 chars)
++  // chunk #2 will write  83 chars (remaining 417 bytes, which can fit 69 chars) 
++  // chunk #3 will write  17 chars and the writing is complete with no checking 
++  // nor any unnecessary expansion/copy of the buffer 
++  const base::Vector<const SrcChar> vector = string->GetCharVector<SrcChar>(no_gc);
++  int offset = 0;
++  while(offset < vector.length()) {
++    int max_chars = MaxCharsThatFit() - 1; // leave room for trailing "
++    if (max_chars < 1) {
++      Extend();
++      max_chars = MaxCharsThatFit() - 1; // leave room for trailing "
++    }
++    // write at most max_chars unchecked and loop again if there's more.
++    max_chars = std::min(max_chars, vector.length() - offset);
+     NoExtendBuilder<DestChar> no_extend(
+-        reinterpret_cast<DestChar*>(part_ptr_) + current_index_,
+-        &current_index_);
++      reinterpret_cast<DestChar*>(part_ptr_) + current_index_,
++      &current_index_);
++
+     required_escaping = SerializeStringUnchecked_<SrcChar, DestChar, raw_json>(
+-        vector, &no_extend);
+-  } else {
+-    for (int i = 0; i < vector.length(); i++) {
+-      SrcChar c = vector.at(i);
+-      if (raw_json || DoNotEscape(c)) {
+-        Append<SrcChar, DestChar>(c);
+-      } else if (sizeof(SrcChar) != 1 &&
+-                 base::IsInRange(c, static_cast<SrcChar>(0xD800),
+-                                 static_cast<SrcChar>(0xDFFF))) {
+-        // The current character is a surrogate.
+-        required_escaping = true;
+-        if (c <= 0xDBFF) {
+-          // The current character is a leading surrogate.
+-          if (i + 1 < vector.length()) {
+-            // There is a next character.
+-            SrcChar next = vector.at(i + 1);
+-            if (base::IsInRange(next, static_cast<SrcChar>(0xDC00),
+-                                static_cast<SrcChar>(0xDFFF))) {
+-              // The next character is a trailing surrogate, meaning this is a
+-              // surrogate pair.
+-              Append<SrcChar, DestChar>(c);
+-              Append<SrcChar, DestChar>(next);
+-              i++;
+-            } else {
+-              // The next character is not a trailing surrogate. Thus, the
+-              // current character is a lone leading surrogate.
+-              AppendCStringLiteral("\\u");
+-              char* const hex = DoubleToRadixCString(c, 16);
+-              AppendCString(hex);
+-              DeleteArray(hex);
+-            }
+-          } else {
+-            // There is no next character. Thus, the current character is a
+-            // lone leading surrogate.
+-            AppendCStringLiteral("\\u");
+-            char* const hex = DoubleToRadixCString(c, 16);
+-            AppendCString(hex);
+-            DeleteArray(hex);
+-          }
+-        } else {
+-          // The current character is a lone trailing surrogate. (If it had
+-          // been preceded by a leading surrogate, we would've ended up in the
+-          // other branch earlier on, and the current character would've been
+-          // handled as part of the surrogate pair already.)
+-          AppendCStringLiteral("\\u");
+-          char* const hex = DoubleToRadixCString(c, 16);
+-          AppendCString(hex);
+-          DeleteArray(hex);
+-        }
+-      } else {
+-        DCHECK_LT(c, 0x60);
+-        required_escaping = true;
+-        AppendCString(&JsonEscapeTable[c * kJsonEscapeTableEntrySize]);
+-      }
+-    }
++      vector, &no_extend, offset, offset+max_chars) || required_escaping;
++    offset += max_chars;
+   }
++
+   if (!raw_json) Append<uint8_t, DestChar>('"');
+   return required_escaping;
+ }
