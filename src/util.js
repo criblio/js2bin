@@ -247,10 +247,88 @@ function upload(url, file, headers) {
     );
 }
 
+function getAssetIdByName(url, assetName, headers) {
+  return new Promise((resolve, reject) => {
+    log(`getting asset ID for name=${assetName} from url=${url} ...`);
+    if (!url || url.length === 0) {
+      throw new Error(`Invalid Argument - url [${url}] is undefined or empty!`);
+    }
+    if (!assetName || assetName.length === 0) {
+      throw new Error(`Invalid Argument - assetName [${assetName}] is undefined or empty!`);
+    }
+    const _url = new URL(url);
+    const options = {
+      hostname: _url.hostname,
+      port: _url.port,
+      path: `${_url.pathname}${_url.search}`,
+      method: 'GET',
+      headers: {
+        ...headers,
+        'User-Agent': 'js2bin'
+      }
+    };
+    const proto = url.startsWith('https://') ? https : http;
+    const req = proto.request(options, (res) => {
+      if (res.statusCode >= 400) {
+        return reject(new Error(`Non-OK response, statusCode=${res.statusCode}, url=${url}`));
+        // return resolve(null);
+      }
+      res.on('error', reject);
+      let result = '';
+      res.on('data', data => { result += data; });
+      res.on('end', () => {
+        const response = JSON.parse(result);
+        const asset = response.assets.find(a => a.name === assetName);
+        if (!asset) {
+          return resolve(null);
+        }
+        resolve(asset.id);
+      });
+    });
+
+    req.on('error', reject);
+    req.end();
+  });
+}
+
+function deleteArtifact(url, headers) {
+  return new Promise((resolve, reject) => {
+    log(`deleting artifact from url=${url} ...`);
+    if (!url || url.length === 0) {
+      throw new Error(`Invalid Argument - url [${url}] is undefined or empty!`);
+    }
+    const _url = new URL(url);
+    const options = {
+      hostname: _url.hostname,
+      port: _url.port,
+      path: `${_url.pathname}${_url.search}`,
+      method: 'DELETE',
+      headers: {
+        ...headers,
+        'User-Agent': 'js2bin'
+      }
+    };
+    const proto = url.startsWith('https://') ? https : http;
+    const req = proto.request(options, (res) => {
+      if (res.statusCode >= 400) {
+        return reject(new Error(`Non-OK response, statusCode=${res.statusCode}, url=${url}`));
+      }
+      res.on('data', data => log(data.toString()));
+      res.on('end', () => resolve());
+      res.on('error', reject);
+    });
+
+    req.on('error', reject);
+    req.end();
+  });
+}
+
 module.exports = {
   log,
   download,
   upload,
+  deleteArtifact,
+  getAssetIdByName,
   fetch,
   runCommand,
   mkdirp,

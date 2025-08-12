@@ -1,5 +1,5 @@
 
-const { log, download, upload, fetch, mkdirp, rmrf, copyFileAsync, runCommand, renameAsync, patchFile } = require('./util');
+const { log, download, upload, deleteArtifact, getAssetIdByName, fetch, mkdirp, rmrf, copyFileAsync, runCommand, renameAsync, patchFile } = require('./util');
 const { gzipSync, createGunzip } = require('zlib');
 const { join, dirname, basename, parse, resolve } = require('path');
 const fs = require('fs');
@@ -141,7 +141,26 @@ class NodeJsBuilder {
     return p
       .then(() => fetch(`https://api.github.com/repos/criblio/js2bin/releases/tags/v${pkg.version}`, headers))
       .then(JSON.parse)
-      .then(p => p.upload_url.split('{')[0])
+      .then(release => {
+        // First, check if an asset with the same name already exists and delete it
+        const releaseUrl = `https://api.github.com/repos/criblio/js2bin/releases/tags/v${pkg.version}`;
+        return getAssetIdByName(releaseUrl, name, headers)
+          .then(assetId => {
+            if (assetId) {
+              log(`Found existing asset with name '${name}' and id ${assetId}, deleting it first and then proceeding with uploading the new one`);
+              const deleteUrl = `https://api.github.com/repos/criblio/js2bin/releases/assets/${assetId}`;
+              return deleteArtifact(deleteUrl, headers)
+                .then(() => {
+                  log(`Successfully deleted existing asset with ID ${assetId}`);
+                  return release;
+                });
+            } else {
+              log(`No existing asset with name '${name}' found for deletion, proceeding with upload`);
+              return release;
+            }
+          });
+      })
+      .then(release => release.upload_url.split('{')[0])
       .then(baseUrl => {
         const url = `${baseUrl}?name=${encodeURIComponent(name)}`;
         return upload(url, this.resultFile, headers);
