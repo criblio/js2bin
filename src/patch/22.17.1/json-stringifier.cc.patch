@@ -1,20 +1,17 @@
 diff --git a/deps/v8/src/json/json-stringifier.cc b/deps/v8/src/json/json-stringifier.cc
-index 30dfb25623..36ece04a8e 100644
+index 30dfb25623..e52d4e0067 100644
 --- a/deps/v8/src/json/json-stringifier.cc
 +++ b/deps/v8/src/json/json-stringifier.cc
-@@ -124,6 +124,11 @@ class JsonStringifier {
-   V8_INLINE bool CurrentPartCanFit(int length) {
-     return part_length_ - current_index_ > length;
-   }
-+  // estimates the maximum number of chars that can fit in the remaining buffer
-+  // assumes worst case scenario: each char is convereted in to 6
-+  V8_INLINE int MaxCharsThatFit() {
-+    return (part_length_ - current_index_) / 6;
-+  }
+@@ -26,7 +26,7 @@ namespace internal {
  
-   // We make a rough estimate to find out if the current string can be
-   // serialized without allocating a new string part. The worst case length of
-@@ -253,6 +258,11 @@ class JsonStringifier {
+ class JsonStringifier {
+  public:
+-  explicit JsonStringifier(Isolate* isolate);
++  explicit JsonStringifier(Isolate* isolate, bool optimized=false);
+ 
+   ~JsonStringifier() {
+     if (one_byte_ptr_ != one_byte_array_) delete[] one_byte_ptr_;
+@@ -253,6 +253,11 @@ class JsonStringifier {
        cursor_ += length;
      }
  
@@ -26,13 +23,13 @@ index 30dfb25623..36ece04a8e 100644
     private:
      int* current_index_;
      DestChar* start_;
-@@ -326,7 +336,16 @@ class JsonStringifier {
+@@ -326,13 +331,26 @@ class JsonStringifier {
    // Returns whether any escape sequences were used.
    template <typename SrcChar, typename DestChar, bool raw_json>
    V8_INLINE static bool SerializeStringUnchecked_(
 -      base::Vector<const SrcChar> src, NoExtendBuilder<DestChar>* dest);
 +      base::Vector<const SrcChar> src, NoExtendBuilder<DestChar>* dest,
-+      int offset, int endOffset);
++      int offset=-1, int endOffset=-1);
 +
 +  // uses SIMD with a register approach to check if string needs escaping 
 +  // much faster perf than memory lookup, falls back to calling 
@@ -44,7 +41,18 @@ index 30dfb25623..36ece04a8e 100644
  
    // Returns whether any escape sequences were used.
    template <typename SrcChar, typename DestChar, bool raw_json>
-@@ -342,6 +361,26 @@ class JsonStringifier {
+-  V8_INLINE bool SerializeString_(Tagged<String> string,
++  V8_INLINE bool SerializeStringOptimized_(Tagged<String> string,
+                                   const DisallowGarbageCollection& no_gc);
+ 
++  // Returns whether any escape sequences were used.
++  template <typename SrcChar, typename DestChar, bool raw_json>
++  V8_INLINE bool SerializeString_(Tagged<String> string,
++                                  const DisallowGarbageCollection& no_gc);
+   // Tries to do fast-path serialization for a property key, and returns whether
+   // it was successful.
+   template <typename DestChar>
+@@ -342,6 +360,32 @@ class JsonStringifier {
    template <typename Char>
    V8_INLINE static bool DoNotEscape(Char c);
  
@@ -68,10 +76,57 @@ index 30dfb25623..36ece04a8e 100644
 +    return result != 0;
 +  }
 +
++  // estimates the maximum number of chars that can fit in the remaining buffer
++  // assumes worst case scenario: each char is convereted in to 6
++  V8_INLINE int MaxCharsThatFit() {
++    return (part_length_ - current_index_) / 6;
++  }
++
    V8_INLINE void NewLine();
    V8_NOINLINE void NewLineOutline();
    V8_INLINE void Indent() { indent_++; }
-@@ -1367,14 +1406,68 @@ JsonStringifier::Result JsonStringifier::SerializeJSProxy(
+@@ -386,6 +430,7 @@ class JsonStringifier {
+   int stack_nesting_level_;
+   bool overflowed_;
+   bool need_stack_;
++  bool optimize_serialize_str_;
+ 
+   using KeyObject = std::pair<Handle<Object>, Handle<Object>>;
+   std::vector<KeyObject> stack_;
+@@ -400,7 +445,14 @@ class JsonStringifier {
+ 
+ MaybeHandle<Object> JsonStringify(Isolate* isolate, Handle<Object> object,
+                                   Handle<Object> replacer, Handle<Object> gap) {
+-  JsonStringifier stringifier(isolate);
++  // get JSON._use_original_stringify flag to control use optimized codepath
++  Handle<Object> original_stringify = JSObject::GetProperty(
++    isolate,
++    handle(isolate->native_context()->json_object(), isolate),
++    "_use_original_stringify"
++  ).ToHandleChecked();
++
++  JsonStringifier stringifier(isolate, IsUndefined(*original_stringify, isolate));
+   return stringifier.Stringify(object, replacer, gap);
+ }
+ 
+@@ -446,7 +498,7 @@ const bool JsonStringifier::JsonDoNotEscapeFlagTable[] = {
+     1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+ };
+ 
+-JsonStringifier::JsonStringifier(Isolate* isolate)
++JsonStringifier::JsonStringifier(Isolate* isolate, bool optimized)
+     : isolate_(isolate),
+       encoding_(String::ONE_BYTE_ENCODING),
+       gap_(nullptr),
+@@ -457,6 +509,7 @@ JsonStringifier::JsonStringifier(Isolate* isolate)
+       stack_nesting_level_(0),
+       overflowed_(false),
+       need_stack_(false),
++      optimize_serialize_str_(optimized),
+       stack_(),
+       key_cache_(isolate) {
+   one_byte_ptr_ = one_byte_array_;
+@@ -1367,14 +1420,75 @@ JsonStringifier::Result JsonStringifier::SerializeJSProxy(
    return SUCCESS;
  }
  
@@ -84,7 +139,7 @@ index 30dfb25623..36ece04a8e 100644
 +  DCHECK(sizeof(DestChar) >= sizeof(SrcChar));
 +
 +  // don't do SWAR for short strings
-+  if (endOffset - offset < 16) {
++  if (endOffset - offset < 8) {
 +    return SerializeStringUnchecked_<SrcChar, DestChar, raw_json>(src, dest, offset, endOffset);
 +  }
 +
@@ -127,6 +182,7 @@ index 30dfb25623..36ece04a8e 100644
 +  return required_escaping;
 +}
 +
++
  template <typename SrcChar, typename DestChar, bool raw_json>
  bool JsonStringifier::SerializeStringUnchecked_(
 -    base::Vector<const SrcChar> src, NoExtendBuilder<DestChar>* dest) {
@@ -138,11 +194,17 @@ index 30dfb25623..36ece04a8e 100644
    bool required_escaping = false;
 -  for (int i = 0; i < src.length(); i++) {
 +
++  // default behavior ...
++  if(offset == -1 && endOffset == -1) {
++    offset = 0;
++    endOffset = src.length();
++  }
++
 +  for (int i = offset; i < endOffset; i++) {
      SrcChar c = src[i];
      if (raw_json || DoNotEscape(c)) {
        dest->Append(c);
-@@ -1385,7 +1478,7 @@ bool JsonStringifier::SerializeStringUnchecked_(
+@@ -1385,7 +1499,7 @@ bool JsonStringifier::SerializeStringUnchecked_(
        required_escaping = true;
        if (c <= 0xDBFF) {
          // The current character is a leading surrogate.
@@ -151,75 +213,15 @@ index 30dfb25623..36ece04a8e 100644
            // There is a next character.
            SrcChar next = src[i + 1];
            if (base::IsInRange(next, static_cast<SrcChar>(0xDC00),
-@@ -1433,73 +1526,39 @@ bool JsonStringifier::SerializeStringUnchecked_(
- template <typename SrcChar, typename DestChar, bool raw_json>
- bool JsonStringifier::SerializeString_(Tagged<String> string,
-                                        const DisallowGarbageCollection& no_gc) {
--  int length = string->length();
-   bool required_escaping = false;
-   if (!raw_json) Append<uint8_t, DestChar>('"');
--  // We might be able to fit the whole escaped string in the current string
--  // part, or we might need to allocate.
--  base::Vector<const SrcChar> vector = string->GetCharVector<SrcChar>(no_gc);
--  if V8_LIKELY (EscapedLengthIfCurrentPartFits(length)) {
--    NoExtendBuilder<DestChar> no_extend(
--        reinterpret_cast<DestChar*>(part_ptr_) + current_index_,
--        &current_index_);
--    required_escaping = SerializeStringUnchecked_<SrcChar, DestChar, raw_json>(
--        vector, &no_extend);
--  } else {
--    for (int i = 0; i < vector.length(); i++) {
--      SrcChar c = vector.at(i);
--      if (raw_json || DoNotEscape(c)) {
--        Append<SrcChar, DestChar>(c);
--      } else if (sizeof(SrcChar) != 1 &&
--                 base::IsInRange(c, static_cast<SrcChar>(0xD800),
--                                 static_cast<SrcChar>(0xDFFF))) {
--        // The current character is a surrogate.
--        required_escaping = true;
--        if (c <= 0xDBFF) {
--          // The current character is a leading surrogate.
--          if (i + 1 < vector.length()) {
--            // There is a next character.
--            SrcChar next = vector.at(i + 1);
--            if (base::IsInRange(next, static_cast<SrcChar>(0xDC00),
--                                static_cast<SrcChar>(0xDFFF))) {
--              // The next character is a trailing surrogate, meaning this is a
--              // surrogate pair.
--              Append<SrcChar, DestChar>(c);
--              Append<SrcChar, DestChar>(next);
--              i++;
--            } else {
--              // The next character is not a trailing surrogate. Thus, the
--              // current character is a lone leading surrogate.
--              AppendCStringLiteral("\\u");
--              char* const hex = DoubleToRadixCString(c, 16);
--              AppendCString(hex);
--              DeleteArray(hex);
--            }
--          } else {
--            // There is no next character. Thus, the current character is a
--            // lone leading surrogate.
--            AppendCStringLiteral("\\u");
--            char* const hex = DoubleToRadixCString(c, 16);
--            AppendCString(hex);
--            DeleteArray(hex);
--          }
--        } else {
--          // The current character is a lone trailing surrogate. (If it had
--          // been preceded by a leading surrogate, we would've ended up in the
--          // other branch earlier on, and the current character would've been
--          // handled as part of the surrogate pair already.)
--          AppendCStringLiteral("\\u");
--          char* const hex = DoubleToRadixCString(c, 16);
--          AppendCString(hex);
--          DeleteArray(hex);
--        }
--      } else {
--        DCHECK_LT(c, 0x60);
--        required_escaping = true;
--        AppendCString(&JsonEscapeTable[c * kJsonEscapeTableEntrySize]);
--      }
+@@ -1430,6 +1544,46 @@ bool JsonStringifier::SerializeStringUnchecked_(
+   return required_escaping;
+ }
+ 
++template <typename SrcChar, typename DestChar, bool raw_json>
++bool JsonStringifier::SerializeStringOptimized_(Tagged<String> string,
++                                       const DisallowGarbageCollection& no_gc) {
++  bool required_escaping = false;
++  if (!raw_json) Append<uint8_t, DestChar>('"');
 +
 +  // serialize the contents of the string by in chunks of chars that can fit in
 +  // the available buffer, extend the buffer only once full. Note that we need to
@@ -239,7 +241,7 @@ index 30dfb25623..36ece04a8e 100644
 +    if (max_chars < 1) {
 +      Extend();
 +      max_chars = MaxCharsThatFit() - 1; // leave room for trailing "
-     }
++    }
 +    // write at most max_chars unchecked and loop again if buffer space is available
 +    max_chars = std::min(max_chars, vector.length() - offset);
 +    NoExtendBuilder<DestChar> no_extend(
@@ -249,8 +251,31 @@ index 30dfb25623..36ece04a8e 100644
 +    required_escaping = SerializeStringUncheckedSWAR_<SrcChar, DestChar, raw_json>(
 +      vector, &no_extend, offset, offset+max_chars) || required_escaping;
 +    offset += max_chars;
-   }
++  }
 +
-   if (!raw_json) Append<uint8_t, DestChar>('"');
-   return required_escaping;
- }
++  if (!raw_json) Append<uint8_t, DestChar>('"');
++  return required_escaping;
++}
++
+ template <typename SrcChar, typename DestChar, bool raw_json>
+ bool JsonStringifier::SerializeString_(Tagged<String> string,
+                                        const DisallowGarbageCollection& no_gc) {
+@@ -1610,7 +1764,9 @@ bool JsonStringifier::SerializeString(Handle<String> object) {
+   auto string = *object;
+   if (encoding_ == String::ONE_BYTE_ENCODING) {
+     if (String::IsOneByteRepresentationUnderneath(string)) {
+-      return SerializeString_<uint8_t, uint8_t, raw_json>(string, no_gc);
++      return  V8_LIKELY(optimize_serialize_str_)
++                ? SerializeStringOptimized_<uint8_t, uint8_t, raw_json>(string, no_gc)
++                : SerializeString_<uint8_t, uint8_t, raw_json>(string, no_gc);
+     } else {
+       ChangeEncoding();
+     }
+@@ -1618,6 +1774,7 @@ bool JsonStringifier::SerializeString(Handle<String> object) {
+   DCHECK_EQ(encoding_, String::TWO_BYTE_ENCODING);
+   if (String::IsOneByteRepresentationUnderneath(string)) {
+     return SerializeString_<uint8_t, base::uc16, raw_json>(string, no_gc);
++
+   } else {
+     return SerializeString_<base::uc16, base::uc16, raw_json>(string, no_gc);
+   }
