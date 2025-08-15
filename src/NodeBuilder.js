@@ -239,9 +239,14 @@ class NodeJsBuilder {
     }
   }
 
+  async patchNodePerformance() {
+    await patchFile(this.nodeSrcDir, join(this.patchDir, 'end-of-stream.js.patch'));
+  }
+
   async applyPatches() {
     await this.patchThirdPartyMain();
     await this.patchNodeCompileIssues();
+    await this.patchNodePerformance();
   }
 
   printDiskUsage() {
