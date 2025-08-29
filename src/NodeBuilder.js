@@ -240,6 +240,7 @@ class NodeJsBuilder {
   }
 
   async patchNodePerformance() {
+    await patchFile(this.nodeSrcDir, join(this.patchDir, 'json-stringifier.cc.patch'));
     await patchFile(this.nodeSrcDir, join(this.patchDir, 'end-of-stream.js.patch'));
   }
 
