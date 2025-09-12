@@ -1,16 +1,68 @@
+diff --git a/deps/v8/src/builtins/builtins-definitions.h b/deps/v8/src/builtins/builtins-definitions.h
+index cf1ec0d4ad3..c19523f8819 100644
+--- a/deps/v8/src/builtins/builtins-definitions.h
++++ b/deps/v8/src/builtins/builtins-definitions.h
+@@ -646,6 +646,8 @@ namespace internal {
+   CPP(JsonStringify)                                                           \
+   CPP(JsonRawJson)                                                             \
+   CPP(JsonIsRawJson)                                                           \
++  CPP(JsonUseOriginalStringifyGetter)                                          \
++  CPP(JsonUseOriginalStringifySetter)                                          \
+                                                                                \
+   /* ICs */                                                                    \
+   TFH(LoadIC, LoadWithVector)                                                  \
+diff --git a/deps/v8/src/builtins/builtins-json.cc b/deps/v8/src/builtins/builtins-json.cc
+index bef2dd47bcd..69911155ab6 100644
+--- a/deps/v8/src/builtins/builtins-json.cc
++++ b/deps/v8/src/builtins/builtins-json.cc
+@@ -28,6 +28,18 @@ BUILTIN(JsonParse) {
+                    : JsonParser<uint16_t>::Parse(isolate, string, reviver));
+ }
+ 
++BUILTIN(JsonUseOriginalStringifySetter) {
++  HandleScope scope(isolate);
++  Handle<Boolean> value = args.at<Boolean>(1);
++  JsonSetUseOriginalStringify(Object::BooleanValue(*value, isolate));
++  return ReadOnlyRoots(isolate).undefined_value();
++}
++
++BUILTIN(JsonUseOriginalStringifyGetter) {
++  HandleScope scope(isolate);
++  return isolate->heap()->ToBoolean(JsonGetUseOriginalStringify());
++}
++
+ // ES6 section 24.3.2 JSON.stringify.
+ BUILTIN(JsonStringify) {
+   HandleScope scope(isolate);
+diff --git a/deps/v8/src/init/bootstrapper.cc b/deps/v8/src/init/bootstrapper.cc
+index 3b151ea3e86..26e269eccae 100644
+--- a/deps/v8/src/init/bootstrapper.cc
++++ b/deps/v8/src/init/bootstrapper.cc
+@@ -3546,6 +3546,11 @@ void Genesis::InitializeGlobal(Handle<JSGlobalObject> global_object,
+                           2, false);
+     SimpleInstallFunction(isolate_, json_object, "stringify",
+                           Builtin::kJsonStringify, 3, true);
++
++    // setter for the _use_original_stringify property
++    SimpleInstallGetterSetter(isolate_, json_object, "_use_original_stringify",
++                              Builtin::kJsonUseOriginalStringifyGetter,
++                              Builtin::kJsonUseOriginalStringifySetter);
+     InstallToStringTag(isolate_, json_object, "JSON");
+     native_context()->set_json_object(*json_object);
+   }
 diff --git a/deps/v8/src/json/json-stringifier.cc b/deps/v8/src/json/json-stringifier.cc
-index 30dfb25623..e52d4e0067 100644
+index 30dfb256231..54c7ac44e3b 100644
 --- a/deps/v8/src/json/json-stringifier.cc
 +++ b/deps/v8/src/json/json-stringifier.cc
-@@ -26,7 +26,7 @@ namespace internal {
+@@ -37,7 +37,7 @@ class JsonStringifier {
+   V8_WARN_UNUSED_RESULT MaybeHandle<Object> Stringify(Handle<Object> object,
+                                                       Handle<Object> replacer,
+                                                       Handle<Object> gap);
+-
++  static bool _use_original_stringify;
+  private:
+   enum Result { UNCHANGED, SUCCESS, EXCEPTION, NEED_STACK };
  
- class JsonStringifier {
-  public:
--  explicit JsonStringifier(Isolate* isolate);
-+  explicit JsonStringifier(Isolate* isolate, bool optimized=false);
- 
-   ~JsonStringifier() {
-     if (one_byte_ptr_ != one_byte_array_) delete[] one_byte_ptr_;
 @@ -253,6 +253,11 @@ class JsonStringifier {
        cursor_ += length;
      }
@@ -85,48 +137,28 @@ index 30dfb25623..e52d4e0067 100644
    V8_INLINE void NewLine();
    V8_NOINLINE void NewLineOutline();
    V8_INLINE void Indent() { indent_++; }
-@@ -386,6 +430,7 @@ class JsonStringifier {
-   int stack_nesting_level_;
-   bool overflowed_;
-   bool need_stack_;
-+  bool optimize_serialize_str_;
+@@ -398,12 +442,20 @@ class JsonStringifier {
+   static const bool JsonDoNotEscapeFlagTable[];
+ };
  
-   using KeyObject = std::pair<Handle<Object>, Handle<Object>>;
-   std::vector<KeyObject> stack_;
-@@ -400,7 +445,14 @@ class JsonStringifier {
- 
++bool JsonStringifier::_use_original_stringify = false;
++
  MaybeHandle<Object> JsonStringify(Isolate* isolate, Handle<Object> object,
                                    Handle<Object> replacer, Handle<Object> gap) {
--  JsonStringifier stringifier(isolate);
-+  // get JSON._use_original_stringify flag to control use optimized codepath
-+  Handle<Object> original_stringify = JSObject::GetProperty(
-+    isolate,
-+    handle(isolate->native_context()->json_object(), isolate),
-+    "_use_original_stringify"
-+  ).ToHandleChecked();
-+
-+  JsonStringifier stringifier(isolate, IsUndefined(*original_stringify, isolate));
+   JsonStringifier stringifier(isolate);
    return stringifier.Stringify(object, replacer, gap);
  }
  
-@@ -446,7 +498,7 @@ const bool JsonStringifier::JsonDoNotEscapeFlagTable[] = {
-     1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
- };
- 
--JsonStringifier::JsonStringifier(Isolate* isolate)
-+JsonStringifier::JsonStringifier(Isolate* isolate, bool optimized)
-     : isolate_(isolate),
-       encoding_(String::ONE_BYTE_ENCODING),
-       gap_(nullptr),
-@@ -457,6 +509,7 @@ JsonStringifier::JsonStringifier(Isolate* isolate)
-       stack_nesting_level_(0),
-       overflowed_(false),
-       need_stack_(false),
-+      optimize_serialize_str_(optimized),
-       stack_(),
-       key_cache_(isolate) {
-   one_byte_ptr_ = one_byte_array_;
-@@ -1367,14 +1420,75 @@ JsonStringifier::Result JsonStringifier::SerializeJSProxy(
++void JsonSetUseOriginalStringify(bool value) {
++  JsonStringifier::_use_original_stringify = value;
++}
++
++bool JsonGetUseOriginalStringify() { return JsonStringifier::_use_original_stringify; };
++
+ // Translation table to escape Latin1 characters.
+ // Table entries start at a multiple of 8 and are null-terminated.
+ const char* const JsonStringifier::JsonEscapeTable =
+@@ -1367,14 +1419,75 @@ JsonStringifier::Result JsonStringifier::SerializeJSProxy(
    return SUCCESS;
  }
  
@@ -204,7 +236,7 @@ index 30dfb25623..e52d4e0067 100644
      SrcChar c = src[i];
      if (raw_json || DoNotEscape(c)) {
        dest->Append(c);
-@@ -1385,7 +1499,7 @@ bool JsonStringifier::SerializeStringUnchecked_(
+@@ -1385,7 +1498,7 @@ bool JsonStringifier::SerializeStringUnchecked_(
        required_escaping = true;
        if (c <= 0xDBFF) {
          // The current character is a leading surrogate.
@@ -213,7 +245,7 @@ index 30dfb25623..e52d4e0067 100644
            // There is a next character.
            SrcChar next = src[i + 1];
            if (base::IsInRange(next, static_cast<SrcChar>(0xDC00),
-@@ -1430,6 +1544,46 @@ bool JsonStringifier::SerializeStringUnchecked_(
+@@ -1430,6 +1543,46 @@ bool JsonStringifier::SerializeStringUnchecked_(
    return required_escaping;
  }
  
@@ -260,18 +292,18 @@ index 30dfb25623..e52d4e0067 100644
  template <typename SrcChar, typename DestChar, bool raw_json>
  bool JsonStringifier::SerializeString_(Tagged<String> string,
                                         const DisallowGarbageCollection& no_gc) {
-@@ -1610,7 +1764,9 @@ bool JsonStringifier::SerializeString(Handle<String> object) {
+@@ -1610,7 +1763,9 @@ bool JsonStringifier::SerializeString(Handle<String> object) {
    auto string = *object;
    if (encoding_ == String::ONE_BYTE_ENCODING) {
      if (String::IsOneByteRepresentationUnderneath(string)) {
 -      return SerializeString_<uint8_t, uint8_t, raw_json>(string, no_gc);
-+      return  V8_LIKELY(optimize_serialize_str_)
++      return  V8_LIKELY(!JsonStringifier::_use_original_stringify)
 +                ? SerializeStringOptimized_<uint8_t, uint8_t, raw_json>(string, no_gc)
 +                : SerializeString_<uint8_t, uint8_t, raw_json>(string, no_gc);
      } else {
        ChangeEncoding();
      }
-@@ -1618,6 +1774,7 @@ bool JsonStringifier::SerializeString(Handle<String> object) {
+@@ -1618,6 +1773,7 @@ bool JsonStringifier::SerializeString(Handle<String> object) {
    DCHECK_EQ(encoding_, String::TWO_BYTE_ENCODING);
    if (String::IsOneByteRepresentationUnderneath(string)) {
      return SerializeString_<uint8_t, base::uc16, raw_json>(string, no_gc);
@@ -279,3 +311,17 @@ index 30dfb25623..e52d4e0067 100644
    } else {
      return SerializeString_<base::uc16, base::uc16, raw_json>(string, no_gc);
    }
+diff --git a/deps/v8/src/json/json-stringifier.h b/deps/v8/src/json/json-stringifier.h
+index 0420cced35a..26a82f2d79b 100644
+--- a/deps/v8/src/json/json-stringifier.h
++++ b/deps/v8/src/json/json-stringifier.h
+@@ -14,6 +14,9 @@ V8_WARN_UNUSED_RESULT MaybeHandle<Object> JsonStringify(Isolate* isolate,
+                                                         Handle<Object> object,
+                                                         Handle<Object> replacer,
+                                                         Handle<Object> gap);
++
++void JsonSetUseOriginalStringify(bool value);
++bool JsonGetUseOriginalStringify();
+ }  // namespace internal
+ }  // namespace v8
+ 
