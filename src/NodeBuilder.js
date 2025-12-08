@@ -54,7 +54,7 @@ function buildName(platform, arch, placeHolderSizeMB, version) {
 }
 
 class NodeJsBuilder {
-  constructor(cwd, version, mainAppFile, appName, patchDir) {
+  constructor(cwd, version, mainAppFile, appName, { patchDir, compressionAlgo } = {}) {
     this.version = version;
     this.appFile = resolve(mainAppFile);
     this.appName = appName;
@@ -79,6 +79,7 @@ class NodeJsBuilder {
     this.resultFile = isWindows ? join(this.nodeSrcDir, 'Release', 'node.exe') : join(this.nodeSrcDir, 'out', 'Release', 'node');
     this.placeHolderSizeMB = -1;
     this.builderImageVersion = 3;
+    this.compressionAlgo = compressionAlgo || 'gzip';
   }
 
   static platform() {
@@ -198,7 +199,16 @@ class NodeJsBuilder {
   }
 
   getAppContentToBundle() {
-    const mainAppBuffer = this.getAppContentGzip();
+    const supportedCompression = {
+      brotli: () => this.getAppContentBrotli(),
+      br: () => this.getAppContentBrotli(),
+      gzip: () => this.getAppContentGzip(),
+      deflate: () => { throw new Error('deflate is not a supported compression type'); },
+    };
+    if (!supportedCompression[this.compressionAlgo]) {
+      throw new Error(`unknown compression type: ${this.compressionAlgo}`);
+    }
+    let mainAppBuffer = supportedCompression[this.compressionAlgo]();
     return Buffer.from(this.appName).toString('base64') + '\n' + mainAppBuffer.toString('base64');
   }
 
