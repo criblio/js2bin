@@ -11,11 +11,11 @@ command: --build, --ci, --help
 command-args: take the form of --name=value
 
 --build: embed your application into the precompiled NodeJS binary.
-  --node:     NodeJS version(s) to use, can specify more than one. 
+  --node:     NodeJS version(s) to use, can specify more than one.
               e.g. --node=10.16.0 --node=12.4.0
   --platform: Platform(s) to build for, can specify more than one.
               e.g. --platform=linux --platform=darwin
-  --app:      Path to your (bundled) application. 
+  --app:      Path to your (bundled) application.
               e.g. --app=/path/to/app/index.js
   --name:     (opt) Application name
               e.g --name=MyAppSoCool
@@ -23,11 +23,13 @@ command-args: take the form of --name=value
               e.g. --dir=/tmp/js2bin
   --cache     (opt) Cache any pre-built binaries used, to avoid redownload
   --arch:     (opt) Architecture to build for
+  --compress: (opt) Compression type to use, brotli or gzip
+              e.g. --compress=brotli
 
 --ci: build NodeJS with preallocated space for embedding applications
-  --node: NodeJS version to build from source, can specify more than one. 
+  --node: NodeJS version to build from source, can specify more than one.
           e.g. --node=10.16.0
-  --size: Amount of preallocated space, can specify more than one. 
+  --size: Amount of preallocated space, can specify more than one.
           e.g. --size=2MB --size=4MB
   --dir:       (opt) Working directory, if not specified use cwd
   --cache:     (opt) whether to keep build in the cache (to be reused by --build)
@@ -94,7 +96,7 @@ if (args.build) {
   const plats = asArray(args.platform);
   versions.forEach(version => {
     plats.forEach(plat => {
-      const builder = new NodeJsBuilder(args.dir, version, app, args.name);
+      const builder = new NodeJsBuilder(args.dir, version, app, args.name, { compressionAlgo: args.compress });
       p = p.then(() => {
         const arch = args.arch || 'x64';
         log(`building for version=${version}, plat=${plat} app=${app}} arch=${arch}`);
@@ -112,7 +114,7 @@ if (args.build) {
     let lastBuilder;
     sizes.forEach(size => {
       archs.forEach(arch => {
-        const builder = new NodeJsBuilder(args.dir, version, size);
+        const builder = new NodeJsBuilder(args.dir, version, size, undefined, { compressionAlgo: args.compress });
         lastBuilder = builder;
         p = p.then(() => {
           log(`building for version=${version}, size=${size} arch=${arch}`);

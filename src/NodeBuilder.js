@@ -1,6 +1,12 @@
 
 const { log, download, upload, deleteArtifact, getAssetIdByName, fetch, mkdirp, rmrf, copyFileAsync, runCommand, renameAsync, patchFile } = require('./util');
-const { gzipSync, createGunzip } = require('zlib');
+const {
+  brotliCompressSync,
+  gzipSync,
+  createGunzip,
+  gzip,
+  constants: { BROTLI_PARAM_QUALITY, BROTLI_MAX_QUALITY, Z_BEST_COMPRESSION },
+} = require('zlib');
 const { join, dirname, basename, parse, resolve } = require('path');
 const fs = require('fs');
 const os = require('os');
@@ -48,7 +54,7 @@ function buildName(platform, arch, placeHolderSizeMB, version) {
 }
 
 class NodeJsBuilder {
-  constructor(cwd, version, mainAppFile, appName, patchDir) {
+  constructor(cwd, version, mainAppFile, appName, { patchDir, compressionAlgo } = {}) {
     this.version = version;
     this.appFile = resolve(mainAppFile);
     this.appName = appName;
@@ -73,6 +79,7 @@ class NodeJsBuilder {
     this.resultFile = isWindows ? join(this.nodeSrcDir, 'Release', 'node.exe') : join(this.nodeSrcDir, 'out', 'Release', 'node');
     this.placeHolderSizeMB = -1;
     this.builderImageVersion = 3;
+    this.compressionAlgo = compressionAlgo || 'gzip';
   }
 
   static platform() {
@@ -192,8 +199,35 @@ class NodeJsBuilder {
   }
 
   getAppContentToBundle() {
-    const mainAppFileCont = gzipSync(fs.readFileSync(this.appFile), {level: 9}).toString('base64');
-    return Buffer.from(this.appName).toString('base64') + '\n' + mainAppFileCont;
+    const supportedCompression = {
+      brotli: () => this.getAppContentBrotli(),
+      br: () => this.getAppContentBrotli(),
+      gzip: () => this.getAppContentGzip(),
+      deflate: () => { throw new Error('deflate is not a supported compression type'); },
+    };
+    if (!supportedCompression[this.compressionAlgo]) {
+      throw new Error(`unknown compression type: ${this.compressionAlgo}`);
+    }
+    let mainAppBuffer = supportedCompression[this.compressionAlgo]();
+    return Buffer.from(this.appName).toString('base64') + '\n' + mainAppBuffer.toString('base64');
+  }
+
+  getAppContentGzip() {
+    const gzipBuffer = gzipSync(fs.readFileSync(this.appFile), {
+      level: Z_BEST_COMPRESSION,
+    });
+    return gzipBuffer;
+  }
+
+  getAppContentBrotli() {
+    const brotliBuffer = brotliCompressSync(fs.readFileSync(this.appFile), {
+      params: { [BROTLI_PARAM_QUALITY]: BROTLI_MAX_QUALITY },
+    });
+    // brotli does not use any official magic bytes or header signature
+    // prepend the unofficial header ce b2 cf 81
+    // see https://github.com/madler/brotli/blob/master/br-format-v3.txt
+    const brotliHeader = Buffer.from('ceb2cf81', 'hex');
+    return Buffer.concat([brotliHeader, brotliBuffer]);
   }
 
   prepareNodeJsBuild() {
@@ -286,7 +320,7 @@ class NodeJsBuilder {
   // 1. download node source
   // 2. expand node version
   // 3. install _third_party_main.js
-  // 4. process mainAppFile (gzip, base64 encode it) - could be a placeholder file
+  // 4. process mainAppFile (gzip/brotli, base64 encode it) - could be a placeholder file
   // 5. kick off ./configure & build
   buildFromSource(uploadBuild, cache, container, arch, ptrCompression) {
     const makeArgs = isWindows ? ['x64', 'no-cctest'] : [`-j${os.cpus().length}`];

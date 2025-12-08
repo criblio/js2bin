@@ -1,6 +1,6 @@
 
 const Module = require('module');
-const { gunzipSync } = require('zlib');
+const { brotliDecompressSync, gunzipSync } = require('zlib');
 const { join, dirname } = require('path');
 
 let source = process.binding('natives')._js2bin_app_main;
@@ -19,7 +19,15 @@ const parts = source.split('\n');
 const appName = Buffer.from(parts[0], 'base64').toString();
 const filename = join(dirname(process.execPath), `${appName.trim()}.js`);
 
-source = parts[1];
+const sourceBuffer = Buffer.from(parts[1], 'base64');
+let sourceString;
+if (sourceBuffer.toString('hex', 0, 4) === 'ceb2cf81') {
+  sourceString = brotliDecompressSync(sourceBuffer.subarray(4)).toString();
+} else if (sourceBuffer.tostring('hex', 0, 2) === '1f8b') {
+  sourceString = gunzipSync(sourceBuffer, {chunkSize: 128*1024*1024}).toString();
+} else {
+  throw new Error('unknown compression format')
+}
 
 // here we turn what looks like an internal module to an non-internal one
 // that way the module is loaded exactly as it would by: node app_main.js
@@ -32,7 +40,7 @@ mod._compile(`
 // initialize clustering
 const cluster = require('cluster');
 if (cluster.worker) {
-   // NOOP - cluster worker already initialized, likely Node 12.x+ 
+   // NOOP - cluster worker already initialized, likely Node 12.x+
 }else if (process.argv[1] && process.env.NODE_UNIQUE_ID) {
    cluster._setupWorker()
    delete process.env.NODE_UNIQUE_ID
@@ -40,6 +48,6 @@ if (cluster.worker) {
   process.argv.splice(1, 0, __filename); // don't mess with argv in clustering
 }
 
-${gunzipSync(Buffer.from(source, 'base64'), {chunkSize: 128*1024*1024}).toString()}
+${sourceString}
 
 `, filename);
