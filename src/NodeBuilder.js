@@ -6,7 +6,7 @@ const {
   createGunzip,
   gzip,
   constants: { BROTLI_PARAM_QUALITY, BROTLI_MAX_QUALITY, Z_BEST_COMPRESSION },
-} = require("zlib");
+} = require('zlib');
 const { join, dirname, basename, parse, resolve } = require('path');
 const fs = require('fs');
 const os = require('os');
