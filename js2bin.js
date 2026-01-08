@@ -23,6 +23,10 @@ command-args: take the form of --name=value
               e.g. --dir=/tmp/js2bin
   --cache     (opt) Cache any pre-built binaries used, to avoid redownload
   --arch:     (opt) Architecture to build for
+  --build-version: (opt) Build version identifier (default: v1)
+              e.g. --build-version=v2
+  --download-url: (opt) Custom URL to download pre-built binaries from
+                e.g. --download-url=https://example.com/binaries/
 
 --ci: build NodeJS with preallocated space for embedding applications
   --node: NodeJS version to build from source, can specify more than one. 
@@ -72,6 +76,8 @@ function parseArgs() {
   args.platform = (args.platform || NodeJsBuilder.platform());
   args.container = (args.container || false);
   args.ptrCompression = (args['pointer-compress'] == 'true');
+  args.buildVersion = (args['build-version'] || 'v1');
+  args.downloadUrl = (args['download-url'] || undefined);
   return args;
 }
 
@@ -94,12 +100,12 @@ if (args.build) {
   const plats = asArray(args.platform);
   versions.forEach(version => {
     plats.forEach(plat => {
-      const builder = new NodeJsBuilder(args.dir, version, app, args.name);
+      const builder = new NodeJsBuilder(args.dir, version, app, args.name, undefined, args.buildVersion);
       p = p.then(() => {
         const arch = args.arch || 'x64';
         log(`building for version=${version}, plat=${plat} app=${app}} arch=${arch}`);
         const outName = args.name ? `${args.name}-${plat}-${arch}` : undefined;
-        return builder.buildFromCached(plat, arch, outName, args.cache, args.size);
+        return builder.buildFromCached(plat, arch, outName, args.cache, args.size, args.downloadUrl);
       });
     });
   });
@@ -112,13 +118,13 @@ if (args.build) {
     let lastBuilder;
     sizes.forEach(size => {
       archs.forEach(arch => {
-        const builder = new NodeJsBuilder(args.dir, version, size);
+        const builder = new NodeJsBuilder(args.dir, version, size, undefined, undefined, args.buildVersion);
         lastBuilder = builder;
         p = p.then(() => {
           log(`building for version=${version}, size=${size} arch=${arch}`);
           return builder.buildFromSource(args.upload, args.cache, args.container, arch, args.ptrCompression);
         });
-      })
+      });
     });
     if (args.clean) { p = p.then(() => lastBuilder.cleanupBuild().catch(err => log(err))); }
   });

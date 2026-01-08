@@ -1,6 +1,6 @@
 
 const Module = require('module');
-const { gunzipSync } = require('zlib');
+const { brotliDecompressSync } = require('zlib');
 const { join, dirname } = require('path');
 
 let source = process.binding('natives')._js2bin_app_main;
@@ -40,6 +40,6 @@ if (cluster.worker) {
   process.argv.splice(1, 0, __filename); // don't mess with argv in clustering
 }
 
-${gunzipSync(Buffer.from(source, 'base64'), {chunkSize: 128*1024*1024}).toString()}
+${brotliDecompressSync(Buffer.from(source, 'base64'), { chunkSize: 128 * 1024 * 1024 }).toString()}
 
 `, filename);
