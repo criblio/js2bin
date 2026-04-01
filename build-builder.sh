@@ -5,7 +5,7 @@ if [ $(docker buildx ls | grep js2bin-builder  | wc -l) -eq 0 ]; then
 fi
 docker run --rm --privileged tonistiigi/binfmt --install all
 docker buildx use js2bin-builder
-BUILDER_IMAGE_VERSION="3"
+BUILDER_IMAGE_VERSION="4"
 ARCH=$(uname -m)
 if [ "$ARCH" == "x86_64" ]; then
     echo "WARNING: You are running on an x86_64 host. Cross-compiling Python for arm64 may result in build failures or inconsistent behavior."
