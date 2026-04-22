@@ -170,6 +170,7 @@ describe('Overlay Integration: Bundle CLI (--overlay)', () => {
 // ---------------------------------------------------------------------------
 
 const DEFAULT_NODE_VERSION = '22.22.0';
+const DEFAULT_BUILD_VERSION = 'v2';
 const PLATFORM = process.platform === 'win32' ? 'windows' : process.platform;
 const ARCH = process.arch;
 
@@ -197,6 +198,7 @@ describe('Overlay Integration: Full Binary Flow', async () => {
       '--build',
       `--app=${embeddedApp}`,
       `--node=${DEFAULT_NODE_VERSION}`,
+      `--build-version=${DEFAULT_BUILD_VERSION}`,
       '--enable-overlay',
       `--signing-public-key=${buildKeyFile}`,
       '--cache',
@@ -206,6 +208,7 @@ describe('Overlay Integration: Full Binary Flow', async () => {
     ], { timeout: 60000 });
 
     const builtPath = `${binName}-${PLATFORM}-${ARCH}`;
+    console.log(`Build result: code=${buildResult.code} stdout=${buildResult.stdout} stderr=${buildResult.stderr}`);
     if (buildResult.code === 0 && fs.existsSync(builtPath)) {
       if (process.platform === 'darwin') {
         try { await execFileAsync('codesign', ['--force', '--sign', '-', builtPath]); } catch {}
