@@ -373,4 +373,50 @@ describe('Overlay Integration: CLI validation', () => {
       `Expected CLI error about missing key, got: ${result.stdout}${result.stderr}`
     );
   });
+
+  it('should reject an RSA private key at --overlay time', async () => {
+    const rsa = crypto.generateKeyPairSync('rsa', {
+      modulusLength: 2048,
+      privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
+      publicKeyEncoding: { type: 'spki', format: 'pem' },
+    });
+    const badKeyFile = path.join(tmpDir, 'rsa.key');
+    fs.writeFileSync(badKeyFile, rsa.privateKey);
+    const appFile = createApp(tmpDir, 'app.js', 'console.log("x");');
+    const result = await runCli([
+      '--overlay',
+      `--app=${appFile}`,
+      `--signing-key=${badKeyFile}`,
+      `--output=${path.join(tmpDir, 'out')}`,
+    ]);
+    assert.notEqual(result.code, 0);
+    assert.ok(
+      /ECDSA P-256/.test(result.stdout + result.stderr),
+      `Expected P-256 error, got: ${result.stdout}${result.stderr}`
+    );
+  });
+
+  it('should reject a P-384 public key at --build time', async () => {
+    const p384 = crypto.generateKeyPairSync('ec', {
+      namedCurve: 'secp384r1',
+      privateKeyEncoding: { type: 'sec1', format: 'pem' },
+      publicKeyEncoding: { type: 'spki', format: 'pem' },
+    });
+    const badKeyFile = path.join(tmpDir, 'p384.pub');
+    fs.writeFileSync(badKeyFile, p384.publicKey);
+    const appFile = createApp(tmpDir, 'app.js', 'console.log("x");');
+    const result = await runCli([
+      '--build',
+      `--node=${DEFAULT_NODE_VERSION}`,
+      `--app=${appFile}`,
+      '--enable-overlay',
+      `--signing-public-key=${badKeyFile}`,
+      `--name=${path.join(tmpDir, 'bad-build')}`,
+    ]);
+    assert.notEqual(result.code, 0);
+    assert.ok(
+      /ECDSA P-256/.test(result.stdout + result.stderr),
+      `Expected P-256 error, got: ${result.stdout}${result.stderr}`
+    );
+  });
 });

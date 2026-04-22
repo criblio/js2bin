@@ -1,5 +1,6 @@
 const http = require('http');
 const https = require('https');
+const crypto = require('crypto');
 const { spawn } = require('child_process');
 const { join, dirname } = require('path');
 const { promisify } = require('util');
@@ -323,6 +324,48 @@ function deleteArtifact(url, headers) {
   });
 }
 
+// Allowlist of key algorithms accepted for overlay signing. To add a new
+// supported type, append a spec here — each field is matched against the
+// parsed key; `undefined` fields are wildcards (e.g. an RSA entry would
+// omit `namedCurve`). Unmatched keys are rejected at --overlay / --build
+// time so operators never get a silently-weak key into a signed binary.
+const SUPPORTED_SIGNING_KEYS = [
+  { asymmetricKeyType: 'ec', namedCurve: 'prime256v1', label: 'ECDSA P-256' }
+];
+
+function describeKey(key) {
+  const curve = key.asymmetricKeyDetails && key.asymmetricKeyDetails.namedCurve;
+  return curve ? `${key.asymmetricKeyType}/${curve}` : String(key.asymmetricKeyType);
+}
+
+function matchesKeySpec(key, spec) {
+  if (spec.asymmetricKeyType !== undefined && spec.asymmetricKeyType !== key.asymmetricKeyType) return false;
+  const keyCurve = key.asymmetricKeyDetails && key.asymmetricKeyDetails.namedCurve;
+  if (spec.namedCurve !== undefined && spec.namedCurve !== keyCurve) return false;
+  return true;
+}
+
+function assertSupportedKey(pem, { type, source }) {
+  const create = type === 'private' ? crypto.createPrivateKey : crypto.createPublicKey;
+  let key;
+  try {
+    key = create(pem);
+  } catch (err) {
+    const parseErr = new Error(`Failed to parse ${type} signing key from ${source}: ${err.message}`);
+    parseErr.code = 'ERR_KEY_PARSE';
+    throw parseErr;
+  }
+  if (!SUPPORTED_SIGNING_KEYS.some(spec => matchesKeySpec(key, spec))) {
+    const allowed = SUPPORTED_SIGNING_KEYS.map(s => s.label).join(', ');
+    const unsupportedErr = new Error(
+      `Signing ${type} key from ${source} is not a supported algorithm ` +
+      `(got ${describeKey(key)}). Supported: ${allowed}.`
+    );
+    unsupportedErr.code = 'ERR_UNSUPPORTED_KEY';
+    throw unsupportedErr;
+  }
+}
+
 module.exports = {
   log,
   download,
@@ -335,5 +378,6 @@ module.exports = {
   rmrf,
   copyFileAsync,
   renameAsync,
-  patchFile
+  patchFile,
+  assertSupportedKey,
 };

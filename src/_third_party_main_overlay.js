@@ -12,6 +12,7 @@ const crypto = require('crypto');
 // overwritten at --build time when the user passes --signing-public-key. The
 // sentinel shape mirrors _js2bin_app_main so the same detection works: if the
 // raw module content still starts with backtick+tilde, no key was embedded.
+// Only ECDSA P-256 keys are accepted — matches OverlayBuilder's sign path.
 function extractEmbeddedKey() {
   let raw;
   try {
@@ -23,7 +24,19 @@ function extractEmbeddedKey() {
   if (raw.startsWith('`~')) return null;
   const nullIdx = raw.indexOf('\0');
   const trimmed = (nullIdx > -1 ? raw.substr(0, nullIdx) : raw).trim();
-  return trimmed.length > 0 ? trimmed : null;
+  if (trimmed.length === 0) return null;
+  try {
+    const key = crypto.createPublicKey(trimmed);
+    const curve = key.asymmetricKeyDetails && key.asymmetricKeyDetails.namedCurve;
+    if (key.asymmetricKeyType !== 'ec' || curve !== 'prime256v1') {
+      process.stderr.write(`[js2bin] overlay: embedded signing key is not ECDSA P-256 (type='${key.asymmetricKeyType}', curve='${curve}'). Ignoring.\n`);
+      return null;
+    }
+  } catch (err) {
+    process.stderr.write(`[js2bin] overlay: embedded signing key failed to parse: ${err.message}. Ignoring.\n`);
+    return null;
+  }
+  return trimmed;
 }
 
 const EMBEDDED_SIGNING_PUBLIC_KEY = extractEmbeddedKey();

@@ -3,7 +3,7 @@ const zlib = require('zlib');
 const crypto = require('crypto');
 const fs = require('fs');
 const { join } = require('path');
-const { log } = require('./util');
+const { log, assertSupportedKey } = require('./util');
 
 class OverlayBuilder {
   /**
@@ -60,6 +60,7 @@ class OverlayBuilder {
 
     // Read the private key
     const privateKeyPem = fs.readFileSync(this.signingKey, 'utf8');
+    assertSupportedKey(privateKeyPem, { type: 'private', source: this.signingKey });
 
     // Sign the bundle
     log('signing bundle ...');

@@ -1,5 +1,5 @@
 
-const { log, download, upload, deleteArtifact, getAssetIdByName, fetch, mkdirp, rmrf, copyFileAsync, runCommand, renameAsync, patchFile } = require('./util');
+const { log, download, upload, deleteArtifact, getAssetIdByName, fetch, mkdirp, rmrf, copyFileAsync, runCommand, renameAsync, patchFile, assertSupportedKey } = require('./util');
 const { brotliCompressSync, createGunzip } = require('zlib');
 const zlib = require('zlib');
 const { join, dirname, basename, parse, resolve } = require('path');
@@ -254,12 +254,13 @@ class NodeJsBuilder {
     return Buffer.from('`' + appMainCont + '`');
   }
 
-  // 4 KiB region reserved for the overlay signing public key. The placeholder
-  // is written at --ci time and overwritten at --build time when the user
-  // passes --signing-public-key. Uses the same sentinel+indexOf scheme as the
-  // app bundle placeholder so the runtime can detect an unmodified slot.
+  // 512 B region reserved for the overlay signing public key. Sized to fit a
+  // PEM-encoded ECDSA P-256 public key (~200 B) with generous slack. Written
+  // at --ci time and overwritten at --build time when the user passes
+  // --signing-public-key. Uses the same sentinel+indexOf scheme as the app
+  // bundle placeholder so the runtime can detect an unmodified slot.
   getKeyPlaceholderContent() {
-    const KEY_PLACEHOLDER_SIZE = 4 * 1024;
+    const KEY_PLACEHOLDER_SIZE = 512;
     const line = '~K~e~y~P~l~H~d~\n';
     return Buffer.from('`' + line.repeat(KEY_PLACEHOLDER_SIZE / line.length) + '`');
   }
@@ -427,6 +428,14 @@ class NodeJsBuilder {
   }
 
   buildFromCached(platform = 'linux', arch = 'x64', outFile = undefined, cache = false, size, customDownloadUrl) {
+    // Validate the signing key before any I/O so bad inputs fail fast without
+    // a cache download.
+    let keyPem = null;
+    if (this.enableOverlay && this.signingPublicKey) {
+      keyPem = fs.readFileSync(this.signingPublicKey);
+      assertSupportedKey(keyPem, { type: 'public', source: this.signingPublicKey });
+    }
+
     const mainAppFileCont = this.getAppContentToBundle();
     this.placeHolderSizeMB = Math.ceil(mainAppFileCont.length / 1024 / 1024); // 2, 4, 6, 8...
     if (this.placeHolderSizeMB % 2 !== 0) {
@@ -454,7 +463,7 @@ class NodeJsBuilder {
         execFileCont.fill(0, placeholderIdx, placeholderIdx + placeholder.length);
         execFileCont.write(mainAppFileCont, placeholderIdx);
 
-        if (this.enableOverlay && this.signingPublicKey) {
+        if (keyPem) {
           const keyPlaceholder = this.getKeyPlaceholderContent();
           const keyIdx = execFileCont.indexOf(keyPlaceholder);
           if (keyIdx < 0) {
@@ -463,7 +472,6 @@ class NodeJsBuilder {
               `The cached binary must be built with --ci --enable-overlay.`
             );
           }
-          const keyPem = fs.readFileSync(this.signingPublicKey);
           if (keyPem.length > keyPlaceholder.length) {
             throw new Error(
               `Signing public key (${keyPem.length} bytes) does not fit in the ` +
