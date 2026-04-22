@@ -187,12 +187,11 @@ describe('Overlay Integration: Full Binary Flow', async () => {
     const embeddedApp = createApp(setupDir, 'embedded.js', 'console.log("embedded-ok");');
     const binName = path.join(setupDir, 'overlay-integ-test');
 
-    // --build --enable-overlay requires --signing-public-key. The embedded key
-    // is independent of the per-test bundle-signing key; tests rely on the
-    // trusted-keys directory for bundle verification.
-    const buildKeypair = generateKeypair();
-    const buildKeyFile = path.join(setupDir, 'build.pub');
-    fs.writeFileSync(buildKeyFile, buildKeypair.publicKey);
+    // Single keypair: the public half is embedded at --build time (the only
+    // accepted verifier) and the private half signs every bundle in tests.
+    keypair = generateKeypair();
+    const buildKeyFile = path.join(setupDir, 'signing.pub');
+    fs.writeFileSync(buildKeyFile, keypair.publicKey);
 
     const buildResult = await runCli([
       '--build',
@@ -228,7 +227,6 @@ describe('Overlay Integration: Full Binary Flow', async () => {
   beforeEach(() => {
     if (skipBinaryTests) return;
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'overlay-binary-test-'));
-    keypair = generateKeypair();
 
     // Copy binary into tmpDir so overlay/ dirs are relative to it
     const binName = path.basename(resolvedBinary);
@@ -262,13 +260,6 @@ describe('Overlay Integration: Full Binary Flow', async () => {
     return outputDir;
   }
 
-  // Helper: set up trusted-keys directory with the test public key
-  function installTrustedKey() {
-    const trustedKeysDir = path.join(tmpDir, 'overlay', 'trusted-keys');
-    fs.mkdirSync(trustedKeysDir, { recursive: true });
-    fs.writeFileSync(path.join(trustedKeysDir, 'test.pub'), keypair.publicKey);
-  }
-
   it('should run embedded app when no overlay bundle is present', async (ctx) => {
     if (skipBinaryTests) return ctx.skip('No overlay-enabled cached binary available');
     const result = await runBinary(binPath);
@@ -279,7 +270,6 @@ describe('Overlay Integration: Full Binary Flow', async () => {
   it('should load overlay bundle that overrides embedded app', async (ctx) => {
     if (skipBinaryTests) return ctx.skip('No overlay-enabled cached binary available');
     const overlayCurrentDir = path.join(tmpDir, 'overlay', 'current');
-    installTrustedKey();
     await buildOverlayBundle('console.log("v2-ok");', overlayCurrentDir);
 
     const result = await runBinary(binPath);
@@ -290,7 +280,6 @@ describe('Overlay Integration: Full Binary Flow', async () => {
   it('should load overlay bundle via JS2BIN_OVERLAY_DIR env var', async (ctx) => {
     if (skipBinaryTests) return ctx.skip('No overlay-enabled cached binary available');
     const customOverlayDir = path.join(tmpDir, 'custom-overlay-location');
-    installTrustedKey();
     await buildOverlayBundle('console.log("env-var-ok");', customOverlayDir);
 
     const result = await runBinary(binPath, { env: { JS2BIN_OVERLAY_DIR: customOverlayDir } });
@@ -301,7 +290,6 @@ describe('Overlay Integration: Full Binary Flow', async () => {
   it('should fall back to embedded app when overlay signature is tampered', async (ctx) => {
     if (skipBinaryTests) return ctx.skip('No overlay-enabled cached binary available');
     const overlayCurrentDir = path.join(tmpDir, 'overlay', 'current');
-    installTrustedKey();
     await buildOverlayBundle('console.log("tampered");', overlayCurrentDir);
 
     // Corrupt the signature
@@ -317,15 +305,23 @@ describe('Overlay Integration: Full Binary Flow', async () => {
     assert.ok(result.stderr.includes('signature verification failed'), `Expected signature error in stderr, got: ${result.stderr}`);
   });
 
-  it('should verify overlay bundle using trusted-keys directory', async (ctx) => {
+  it('should reject overlay bundle signed by a different key', async (ctx) => {
     if (skipBinaryTests) return ctx.skip('No overlay-enabled cached binary available');
     const overlayCurrentDir = path.join(tmpDir, 'overlay', 'current');
-    installTrustedKey();
-    await buildOverlayBundle('console.log("trusted-key-ok");', overlayCurrentDir);
+    const rogue = generateKeypair();
+    const rogueKeyFile = path.join(tmpDir, 'rogue.key');
+    fs.writeFileSync(rogueKeyFile, rogue.privateKey);
+    const appFile = createApp(tmpDir, 'rogue-app.js', 'console.log("rogue-ok");');
+    await runCli([
+      '--overlay',
+      `--app=${appFile}`,
+      `--signing-key=${rogueKeyFile}`,
+      `--output=${overlayCurrentDir}`,
+    ]);
 
     const result = await runBinary(binPath);
-    assert.equal(result.code, 0, `Binary failed: ${result.stderr}`);
-    assert.ok(result.stdout.includes('trusted-key-ok'), `Expected overlay output "trusted-key-ok", got: ${result.stdout}`);
+    assert.ok(!result.stdout.includes('rogue-ok'), 'Binary should not have loaded rogue-signed bundle');
+    assert.ok(result.stderr.includes('signature verification failed'), `Expected signature error in stderr, got: ${result.stderr}`);
   });
 });
 

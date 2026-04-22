@@ -140,22 +140,15 @@ Place the bundle artifacts where the binary will find them:
     current/
       bundle.js            ← overlay bundle
       bundle.js.sig        ← signature
-    trusted-keys/
-      signing.pub          ← public key (if not embedded at build time)
 ```
 
 The binary looks for bundles at `<binary-dir>/overlay/current/` by default. Override this with the `JS2BIN_OVERLAY_DIR` environment variable.
 
 ## Signature verification
 
-The binary verifies overlay bundles using ECDSA P-256 (SHA-256). Keys can come from two sources:
+The binary verifies overlay bundles using ECDSA P-256 (SHA-256) against the public key stamped into the binary at `--build` time via `--signing-public-key`. That embedded key is the only accepted verifier — there is no on-disk key loading.
 
-1. **Embedded key** — stamped into the binary at `--build` time via `--signing-public-key`
-2. **Trusted-keys directory** — `<binary-dir>/overlay/trusted-keys/*.pub` files
-
-Both sources are checked. This supports key rotation: deploy new keys to the trusted-keys directory before retiring old ones.
-
-If no keys are available, overlay bundles are rejected. If signature verification fails, the binary falls back to the embedded app and logs a warning to stderr.
+If signature verification fails, the binary falls back to the embedded app and logs a warning to stderr.
 
 ## Generating signing keys
 
