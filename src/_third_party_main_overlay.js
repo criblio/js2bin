@@ -7,7 +7,26 @@ const crypto = require('crypto');
 
 // --- Overlay Loader ---
 
-const EMBEDDED_SIGNING_PUBLIC_KEY = '__JS2BIN_SIGNING_PUBLIC_KEY__';
+// The signing public key lives in a dedicated native module whose backing file
+// (lib/_js2bin_signing_key.js) starts out as a sentinel placeholder and is
+// overwritten at --build time when the user passes --signing-public-key. The
+// sentinel shape mirrors _js2bin_app_main so the same detection works: if the
+// raw module content still starts with backtick+tilde, no key was embedded.
+function extractEmbeddedKey() {
+  let raw;
+  try {
+    raw = process.binding('natives')._js2bin_signing_key;
+  } catch {
+    return null;
+  }
+  if (typeof raw !== 'string' || raw.length === 0) return null;
+  if (raw.startsWith('`~')) return null;
+  const nullIdx = raw.indexOf('\0');
+  const trimmed = (nullIdx > -1 ? raw.substr(0, nullIdx) : raw).trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+const EMBEDDED_SIGNING_PUBLIC_KEY = extractEmbeddedKey();
 
 function verifySignature(data, signature, publicKeyPem) {
   try {
@@ -62,7 +81,7 @@ function tryLoadOverlayBundle(execDir) {
   }
 
   const trustedKeysDir = join(execDir, 'overlay', 'trusted-keys');
-  const allKeys = [EMBEDDED_SIGNING_PUBLIC_KEY, ...loadTrustedKeys(trustedKeysDir)];
+  const allKeys = [EMBEDDED_SIGNING_PUBLIC_KEY, ...loadTrustedKeys(trustedKeysDir)].filter(Boolean);
 
   if (allKeys.length === 0) {
     process.stderr.write('[js2bin] overlay: no signing keys available (no embedded key, no trusted-keys directory). Ignoring overlay bundle.\n');

@@ -30,6 +30,9 @@ command-args: take the form of --name=value
                 e.g. --download-url=https://example.com/binaries/
   --enable-overlay: (opt) Use an overlay-enabled cached binary (built via --ci --enable-overlay).
                     Disabled by default.
+  --signing-public-key: Path to ECDSA P-256 public key PEM file to embed into
+                the binary. Required with --enable-overlay.
+                e.g. --signing-public-key=/path/to/overlay-signing.pub
 
 --overlay: build a signed overlay bundle from a JS application
   --app:      Path to your (bundled) application
@@ -53,10 +56,9 @@ command-args: take the form of --name=value
   --arch:      (opt) build on a specific architecture
   --pointer-compress:  (opt) whether to enable pointer compression
   --enable-overlay: (opt) Compile the overlay runtime into the binary. Without this,
-                    no overlay code exists in the binary.
-  --signing-public-key: (opt) Path to ECDSA P-256 public key PEM file to embed.
-                Requires --enable-overlay.
-                e.g. --signing-public-key=/path/to/overlay-signing.pub
+                    no overlay code exists in the binary. The resulting binary
+                    has no embedded signing key — use --build --signing-public-key
+                    to stamp one in.
 
 --help: print this help message
 `);
@@ -100,8 +102,11 @@ function parseArgs() {
   if (args.signingPublicKey && !args.enableOverlay) {
     return usage('--signing-public-key requires --enable-overlay');
   }
-  if (args.signingPublicKey && !args.ci) {
-    return usage('--signing-public-key is only supported with --ci (key is embedded at compile time)');
+  if (args.signingPublicKey && !args.build) {
+    return usage('--signing-public-key is only supported with --build (key is embedded at build time)');
+  }
+  if (args.build && args.enableOverlay && !args.signingPublicKey) {
+    return usage('--build --enable-overlay requires --signing-public-key');
   }
   return args;
 }
@@ -125,7 +130,7 @@ if (args.build) {
   const plats = asArray(args.platform);
   versions.forEach(version => {
     plats.forEach(plat => {
-      const builder = new NodeJsBuilder(args.dir, version, app, args.name, undefined, args.buildVersion, undefined, undefined, args.enableOverlay);
+      const builder = new NodeJsBuilder(args.dir, version, app, args.name, undefined, args.buildVersion, undefined, args.signingPublicKey, args.enableOverlay);
       p = p.then(() => {
         const arch = args.arch || 'x64';
         log(`building for version=${version}, plat=${plat} app=${app}} arch=${arch}`);
@@ -164,7 +169,7 @@ if (args.build) {
     let lastBuilder;
     sizes.forEach(size => {
       archs.forEach(arch => {
-        const builder = new NodeJsBuilder(args.dir, version, size, undefined, undefined, args.buildVersion, args.commitHash, args.signingPublicKey, args.enableOverlay);
+        const builder = new NodeJsBuilder(args.dir, version, size, undefined, undefined, args.buildVersion, args.commitHash, undefined, args.enableOverlay);
         lastBuilder = builder;
         p = p.then(() => {
           log(`building for version=${version}, size=${size} arch=${arch}`);

@@ -70,6 +70,8 @@ js2bin --build --cache --node=10.13.0 --app=/path/to/my/app.js --name=CoolAppNam
   --cache     (opt) Cache any pre-built binaries used, to avoid redownload
   --enable-overlay: (opt) Use an overlay-enabled cached binary. Requires a cached
                     binary built with --enable-overlay via --ci.
+  --signing-public-key: Embed an ECDSA P-256 public key into the binary.
+                Required with --enable-overlay.
 
 --overlay: build a signed overlay bundle from a JS application
   --app:         Path to your (bundled) application
@@ -85,10 +87,9 @@ js2bin --build --cache --node=10.13.0 --app=/path/to/my/app.js --name=CoolAppNam
   --cache:  (opt) whether to keep build in the cache (to be reused by --build)
   --upload: (opt) whether to upload node build to github releases
   --clean:  (opt) whether to clean up after the build
-  --enable-overlay: (opt) Compile the overlay runtime into the binary. Without this,
-                    no overlay code exists in the binary.
-  --signing-public-key: (opt) Embed an ECDSA P-256 public key into the binary.
-                Requires --enable-overlay.
+  --enable-overlay: (opt) Compile the overlay runtime into the binary. The resulting
+                    binary has no embedded signing key — consumers stamp their own
+                    in at --build time via --signing-public-key.
 
 
 ```
@@ -103,21 +104,19 @@ When a binary is built with `--enable-overlay`, it checks for a signed overlay b
 
 ## Building an overlay-enabled binary
 
-Overlay-enabled binaries must be built from source because the overlay runtime needs to be compiled into Node:
+Overlay-enabled binaries must be built from source because the overlay runtime needs to be compiled into Node. The signing public key is embedded at **`--build`** time, so the placeholder binaries published by this project (and any cached via `--ci`) carry no baked-in key — every consumer stamps in their own:
 
 ```bash
-# 1. Build Node from source with overlay support (slow, one-time)
+# 1. Build Node from source with overlay support (slow, one-time). No key yet.
 js2bin --ci --node=22.22.0 --size=2MB --cache --enable-overlay
 
-# 2. Embed your app into the overlay-enabled cached binary (fast)
-js2bin --build --app=/path/to/app.js --node=22.22.0 --cache --enable-overlay --name=MyApp
+# 2. Embed your app AND your signing public key into the overlay-enabled cached
+#    binary (fast). --signing-public-key is required with --enable-overlay.
+js2bin --build --app=/path/to/app.js --node=22.22.0 --cache --enable-overlay \
+  --signing-public-key=overlay-signing.pub --name=MyApp
 ```
 
-You can optionally bake a signing public key into the binary at step 1:
-
-```bash
-js2bin --ci --node=22.22.0 --size=2MB --cache --enable-overlay --signing-public-key=overlay-signing.pub
-```
+Because step 1 produces a keyless artifact, the overlay-enabled binaries published to GitHub releases can be reused by anyone: download, run `--build` with your own key, ship.
 
 ## Creating an overlay update bundle
 
@@ -151,7 +150,7 @@ The binary looks for bundles at `<binary-dir>/overlay/current/` by default. Over
 
 The binary verifies overlay bundles using ECDSA P-256 (SHA-256). Keys can come from two sources:
 
-1. **Embedded key** — baked in at build time via `--signing-public-key`
+1. **Embedded key** — stamped into the binary at `--build` time via `--signing-public-key`
 2. **Trusted-keys directory** — `<binary-dir>/overlay/trusted-keys/*.pub` files
 
 Both sources are checked. This supports key rotation: deploy new keys to the trusted-keys directory before retiring old ones.

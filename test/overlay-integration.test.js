@@ -187,11 +187,19 @@ describe('Overlay Integration: Full Binary Flow', async () => {
     const embeddedApp = createApp(setupDir, 'embedded.js', 'console.log("embedded-ok");');
     const binName = path.join(setupDir, 'overlay-integ-test');
 
+    // --build --enable-overlay requires --signing-public-key. The embedded key
+    // is independent of the per-test bundle-signing key; tests rely on the
+    // trusted-keys directory for bundle verification.
+    const buildKeypair = generateKeypair();
+    const buildKeyFile = path.join(setupDir, 'build.pub');
+    fs.writeFileSync(buildKeyFile, buildKeypair.publicKey);
+
     const buildResult = await runCli([
       '--build',
       `--app=${embeddedApp}`,
       `--node=${DEFAULT_NODE_VERSION}`,
       '--enable-overlay',
+      `--signing-public-key=${buildKeyFile}`,
       '--cache',
       `--name=${binName}`,
       `--platform=${PLATFORM}`,
@@ -318,5 +326,55 @@ describe('Overlay Integration: Full Binary Flow', async () => {
     const result = await runBinary(binPath);
     assert.equal(result.code, 0, `Binary failed: ${result.stderr}`);
     assert.ok(result.stdout.includes('trusted-key-ok'), `Expected overlay output "trusted-key-ok", got: ${result.stdout}`);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// CLI validation: --signing-public-key lives on --build, not --ci
+// ---------------------------------------------------------------------------
+
+describe('Overlay Integration: CLI validation', () => {
+  let tmpDir;
+  let keyFile;
+
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'overlay-cli-'));
+    const kp = generateKeypair();
+    keyFile = path.join(tmpDir, 'signing.pub');
+    fs.writeFileSync(keyFile, kp.publicKey);
+  });
+
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('should reject --signing-public-key on --ci', async () => {
+    const result = await runCli([
+      '--ci',
+      `--node=${DEFAULT_NODE_VERSION}`,
+      '--size=2MB',
+      '--enable-overlay',
+      `--signing-public-key=${keyFile}`,
+    ]);
+    assert.notEqual(result.code, 0);
+    assert.ok(
+      /only supported with --build/.test(result.stdout + result.stderr),
+      `Expected CLI error mentioning --build, got: ${result.stdout}${result.stderr}`
+    );
+  });
+
+  it('should reject --build --enable-overlay without --signing-public-key', async () => {
+    const appFile = createApp(tmpDir, 'app.js', 'console.log("x");');
+    const result = await runCli([
+      '--build',
+      `--node=${DEFAULT_NODE_VERSION}`,
+      `--app=${appFile}`,
+      '--enable-overlay',
+    ]);
+    assert.notEqual(result.code, 0);
+    assert.ok(
+      /requires --signing-public-key/.test(result.stdout + result.stderr),
+      `Expected CLI error about missing key, got: ${result.stdout}${result.stderr}`
+    );
   });
 });
