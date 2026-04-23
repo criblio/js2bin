@@ -171,6 +171,7 @@ describe('Overlay Integration: Bundle CLI (--overlay)', () => {
 
 const DEFAULT_NODE_VERSION = '22.22.0';
 const DEFAULT_BUILD_VERSION = 'v2';
+const DEFAULT_SIZE = '6MB';
 const PLATFORM = process.platform === 'win32' ? 'windows' : process.platform;
 const ARCH = process.arch;
 
@@ -199,6 +200,7 @@ describe('Overlay Integration: Full Binary Flow', async () => {
       `--app=${embeddedApp}`,
       `--node=${DEFAULT_NODE_VERSION}`,
       `--build-version=${DEFAULT_BUILD_VERSION}`,
+      `--size=${DEFAULT_SIZE}`,
       '--enable-overlay',
       `--signing-public-key=${buildKeyFile}`,
       '--cache',
