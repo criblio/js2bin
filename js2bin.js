@@ -28,11 +28,8 @@ command-args: take the form of --name=value
               e.g. --build-version=v2
   --download-url: (opt) Custom URL to download pre-built binaries from
                 e.g. --download-url=https://example.com/binaries/
-  --verify-signature: (opt) After downloading the cached binary and before
-                modifying it, run signtool verify /pa on it. Fails the build
-                if the cached binary is unsigned or has an invalid signature.
-                Windows-only (no-op on other platforms). Requires signtool.exe
-                on PATH (Windows SDK).
+  --verify-signature: (opt) Run signtool verify /pa on the downloaded
+                binary before modifying it. Windows-only (no-op elsewhere).
   --enable-overlay: (opt) Use an overlay-enabled cached binary (built via --ci --enable-overlay).
                     Disabled by default.
   --signing-public-key: Path to ECDSA P-256 public key PEM file to embed into

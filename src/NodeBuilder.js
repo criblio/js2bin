@@ -427,14 +427,7 @@ class NodeJsBuilder {
       .catch(err => this.printDiskUsage().then(() => { throw err; }));
   }
 
-  /*
-   * Run `signtool verify /pa` on a cached Windows binary. Windows-only;
-   * on non-Windows this is a no-op. Requires signtool.exe on PATH (ships
-   * with the Windows SDK). Used between the download and modify phases of
-   * buildFromCached when --verify-signature is set, so a tampered GitHub
-   * release asset is rejected before its bytes run through the modify
-   * logic.
-   */
+  // Windows-only. Requires signtool.exe on PATH (Windows SDK).
   verifyWindowsSignature(cachedFile) {
     if (!isWindows) return Promise.resolve();
     log(`verifying Authenticode signature: ${cachedFile}`);
