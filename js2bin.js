@@ -28,6 +28,11 @@ command-args: take the form of --name=value
               e.g. --build-version=v2
   --download-url: (opt) Custom URL to download pre-built binaries from
                 e.g. --download-url=https://example.com/binaries/
+  --verify-signature: (opt) After downloading the cached binary and before
+                modifying it, run signtool verify /pa on it. Fails the build
+                if the cached binary is unsigned or has an invalid signature.
+                Windows-only (no-op on other platforms). Requires signtool.exe
+                on PATH (Windows SDK).
   --enable-overlay: (opt) Use an overlay-enabled cached binary (built via --ci --enable-overlay).
                     Disabled by default.
   --signing-public-key: Path to ECDSA P-256 public key PEM file to embed into
@@ -97,6 +102,7 @@ function parseArgs() {
   args.ptrCompression = (args['pointer-compress'] == 'true');
   args.buildVersion = (args['build-version'] || 'v1');
   args.downloadUrl = (args['download-url'] || undefined);
+  args.verifySignature = (args['verify-signature'] === true);
   args.enableOverlay = (args['enable-overlay'] === true);
   args.signingPublicKey = (args['signing-public-key'] || undefined);
   if (args.signingPublicKey && !args.enableOverlay) {
@@ -135,7 +141,7 @@ if (args.build) {
         const arch = args.arch || 'x64';
         log(`building for version=${version}, plat=${plat} app=${app}} arch=${arch}`);
         const outName = args.name ? `${args.name}-${plat}-${arch}` : undefined;
-        return builder.buildFromCached(plat, arch, outName, args.cache, args.size, args.downloadUrl);
+        return builder.buildFromCached(plat, arch, outName, args.cache, args.size, args.downloadUrl, args.verifySignature);
       });
     });
   });

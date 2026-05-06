@@ -427,7 +427,21 @@ class NodeJsBuilder {
       .catch(err => this.printDiskUsage().then(() => { throw err; }));
   }
 
-  buildFromCached(platform = 'linux', arch = 'x64', outFile = undefined, cache = false, size, customDownloadUrl) {
+  /*
+   * Run `signtool verify /pa` on a cached Windows binary. Windows-only;
+   * on non-Windows this is a no-op. Requires signtool.exe on PATH (ships
+   * with the Windows SDK). Used between the download and modify phases of
+   * buildFromCached when --verify-signature is set, so a tampered GitHub
+   * release asset is rejected before its bytes run through the modify
+   * logic.
+   */
+  verifyWindowsSignature(cachedFile) {
+    if (!isWindows) return Promise.resolve();
+    log(`verifying Authenticode signature: ${cachedFile}`);
+    return runCommand('signtool', ['verify', '/pa', cachedFile]);
+  }
+
+  buildFromCached(platform = 'linux', arch = 'x64', outFile = undefined, cache = false, size, customDownloadUrl, verifySignature = false) {
     // Validate the signing key before any I/O so bad inputs fail fast without
     // a cache download.
     let keyPem = null;
@@ -445,8 +459,14 @@ class NodeJsBuilder {
 
     if (size) this.placeHolderSizeMB = parseInt( size.toUpperCase().replaceAll('MB', '') )
 
+    let cachedFilePath;
     return this.downloadCachedBuild(platform, arch, customDownloadUrl)
       .then(cachedFile => {
+        cachedFilePath = cachedFile;
+        return verifySignature ? this.verifyWindowsSignature(cachedFile) : Promise.resolve();
+      })
+      .then(() => {
+        const cachedFile = cachedFilePath;
         const placeholder = this.getPlaceholderContent(this.placeHolderSizeMB);
 
         outFile = resolve(outFile || `app-${platform}-${arch}-${this.version}`);
