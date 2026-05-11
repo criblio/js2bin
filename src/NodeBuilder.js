@@ -380,7 +380,7 @@ class NodeJsBuilder {
   // 3. install _third_party_main.js
   // 4. process mainAppFile (gzip, base64 encode it) - could be a placeholder file
   // 5. kick off ./configure & build
-  buildFromSource(uploadBuild, cache, container, arch, ptrCompression) {
+  buildFromSource(uploadBuild, cache, container, arch, ptrCompression, sign = false) {
     const makeArgs = isWindows ? ['x64', 'no-cctest'] : [`-j${os.cpus().length}`];
     const configArgs = [];
     if(ptrCompression) {
@@ -417,6 +417,7 @@ class NodeJsBuilder {
         }
         return this.buildInContainer(ptrCompression);
       })
+      .then(() => sign ? this.signWindowsBinary(this.resultFile) : Promise.resolve())
       .then(() => this.uploadNodeBinary(undefined, uploadBuild, cache, arch, ptrCompression))
       .then(() => this.printDiskUsage())
       // .then(() => this.cleanupBuild().catch(err => log(err)))
@@ -432,6 +433,24 @@ class NodeJsBuilder {
     if (!isWindows) return Promise.resolve();
     log(`verifying Authenticode signature: ${cachedFile}`);
     return runCommand('signtool', ['verify', '/pa', cachedFile]);
+  }
+
+  // Windows-only. Authenticode-sign the built node binary in place using
+  // DigiCert KeyLocker (smctl + signtool). Expects SM_HOST, SM_API_KEY,
+  // SM_CLIENT_CERT_FILE, SM_CLIENT_CERT_PASSWORD, SHA1, KEY_ALIAS env vars
+  // from the caller. No-op on non-Windows.
+  signWindowsBinary(filePath) {
+    if (!isWindows) return Promise.resolve();
+    log(`signing Authenticode signature: ${filePath}`);
+    // Chained in one cmd.exe shell so smctl's KSP session state survives
+    // across signtool. Splitting breaks with NTE_PERM 0x8009002d.
+    const cmd =
+      'smctl windows ksp register && ' +
+      'smctl windows certsync --keypair-alias=%key_alias% && ' +
+      `signtool sign /d "Cribl Node (js2bin)" /tr http://timestamp.digicert.com ` +
+        `/td SHA256 /fd SHA256 /sha1 "%sha1%" "${filePath}" && ` +
+      'smctl windows certdesync';
+    return runCommand('cmd', ['/c', cmd]);
   }
 
   buildFromCached(platform = 'linux', arch = 'x64', outFile = undefined, cache = false, size, customDownloadUrl, verifySignature = false) {

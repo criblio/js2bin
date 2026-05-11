@@ -53,6 +53,10 @@ command-args: take the form of --name=value
   --dir:       (opt) Working directory, if not specified use cwd
   --cache:     (opt) whether to keep build in the cache (to be reused by --build)
   --upload:    (opt) whether to upload node build to github releases
+  --sign:      (opt) Authenticode-sign the built binary before cache/upload.
+               Windows-only (no-op elsewhere). Requires smctl + signtool on
+               PATH and DigiCert KeyLocker env vars (SM_HOST, SM_API_KEY,
+               SM_CLIENT_CERT_FILE, SM_CLIENT_CERT_PASSWORD, SHA1, KEY_ALIAS).
   --clean:     (opt) whether to clean up after the build
   --container: (opt) build using builder container rather than local dev tools
   --arch:      (opt) build on a specific architecture
@@ -176,7 +180,7 @@ if (args.build) {
         lastBuilder = builder;
         p = p.then(() => {
           log(`building for version=${version}, size=${size} arch=${arch}`);
-          return builder.buildFromSource(args.upload, args.cache, args.container, arch, args.ptrCompression);
+          return builder.buildFromSource(args.upload, args.cache, args.container, arch, args.ptrCompression, args.sign);
         });
       });
     });
