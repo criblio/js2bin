@@ -443,25 +443,20 @@ class NodeJsBuilder {
     if (!isWindows) return Promise.resolve();
     // Chained in one cmd.exe shell so smctl's KSP session state survives
     // across signtool. Splitting breaks with NTE_PERM 0x8009002d.
-    // Must use { shell: true } so cmd.exe parses the quoted /d argument
-    // as one token (otherwise argv serialization strips the quotes and
-    // signtool sees multiple tokens).
-    // KeyLocker's KSP is cwd-sensitive; running signtool from anywhere
-    // other than where the .p12 was decoded also triggers NTE_PERM
-    // 0x8009002d. Pin cwd to dirname(SM_CLIENT_CERT_FILE).
+    // { shell: true } so cmd.exe parses the quoted /d argument as one
+    // token (otherwise argv serialization strips the quotes).
+    // Inheriting cwd from the parent process matches cribl bleat-msi's
+    // working pattern (relative cwd, no explicit override).
     const cmd =
       'smctl windows ksp register && ' +
       'smctl windows certsync --keypair-alias=%key_alias% && ' +
       `signtool sign /d "Cribl Node" /tr http://timestamp.digicert.com ` +
         `/td SHA256 /fd SHA256 /sha1 "%sha1%" "${filePath}" && ` +
       'smctl windows certdesync';
-    const certFile = process.env.SM_CLIENT_CERT_FILE;
-    const cwd = certFile ? dirname(certFile) : undefined;
     log(`signing Authenticode signature: ${filePath}`);
-    if (cwd) log(`signtool cwd: ${cwd}`);
     log(`running: ${cmd} ...`);
     return new Promise((resolve, reject) => {
-      spawn(cmd, { shell: true, stdio: 'inherit', cwd })
+      spawn(cmd, { shell: true, stdio: 'inherit' })
         .once('error', reject)
         .once('close', (code) => {
           if (code !== 0) {
