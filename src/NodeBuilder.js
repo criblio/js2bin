@@ -3,7 +3,7 @@ const { log, download, upload, deleteArtifact, getAssetIdByName, fetch, mkdirp, 
 const { brotliCompressSync, createGunzip } = require('zlib');
 const zlib = require('zlib');
 const { join, dirname, basename, parse, resolve } = require('path');
-const { execFile } = require('child_process');
+const { execFile, spawn } = require('child_process');
 const { promisify } = require('util');
 const fs = require('fs');
 const os = require('os');
@@ -441,16 +441,30 @@ class NodeJsBuilder {
   // from the caller. No-op on non-Windows.
   signWindowsBinary(filePath) {
     if (!isWindows) return Promise.resolve();
-    log(`signing Authenticode signature: ${filePath}`);
     // Chained in one cmd.exe shell so smctl's KSP session state survives
     // across signtool. Splitting breaks with NTE_PERM 0x8009002d.
+    // Must use { shell: true } so cmd.exe parses the quoted /d argument
+    // as one token (otherwise argv serialization strips the quotes and
+    // signtool sees multiple tokens).
     const cmd =
       'smctl windows ksp register && ' +
       'smctl windows certsync --keypair-alias=%key_alias% && ' +
       `signtool sign /d "Cribl Node" /tr http://timestamp.digicert.com ` +
         `/td SHA256 /fd SHA256 /sha1 "%sha1%" "${filePath}" && ` +
       'smctl windows certdesync';
-    return runCommand('cmd', ['/c', cmd]);
+    log(`signing Authenticode signature: ${filePath}`);
+    log(`running: ${cmd} ...`);
+    return new Promise((resolve, reject) => {
+      spawn(cmd, { shell: true, stdio: 'inherit' })
+        .once('error', reject)
+        .once('close', (code) => {
+          if (code !== 0) {
+            reject(new Error(`signtool exited with code: ${code}`));
+          } else {
+            resolve();
+          }
+        });
+    });
   }
 
   buildFromCached(platform = 'linux', arch = 'x64', outFile = undefined, cache = false, size, customDownloadUrl, verifySignature = false) {
