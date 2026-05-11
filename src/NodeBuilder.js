@@ -430,7 +430,9 @@ class NodeJsBuilder {
 
   // Windows-only. Requires signtool.exe on PATH (Windows SDK).
   verifyWindowsSignature(cachedFile) {
-    if (!isWindows) return Promise.resolve();
+    if (!isWindows) {
+      throw new Error('--verify-signature is Windows-only (requires signtool.exe)');
+    }
     log(`verifying Authenticode signature: ${cachedFile}`);
     return runCommand('signtool', ['verify', '/pa', cachedFile]);
   }
@@ -440,7 +442,9 @@ class NodeJsBuilder {
   // Chained in one shell; splitting breaks with NTE_PERM 0x8009002d.
   // shell: true so cmd.exe preserves the quoted /d argument.
   signWindowsBinary(filePath) {
-    if (!isWindows) return Promise.resolve();
+    if (!isWindows) {
+      throw new Error('--sign is Windows-only (requires signtool.exe and DigiCert KeyLocker)');
+    }
     const cmd =
       'smctl windows ksp register && ' +
       'smctl windows certsync --keypair-alias=%key_alias% && ' +
