@@ -435,18 +435,12 @@ class NodeJsBuilder {
     return runCommand('signtool', ['verify', '/pa', cachedFile]);
   }
 
-  // Windows-only. Authenticode-sign the built node binary in place using
-  // DigiCert KeyLocker (smctl + signtool). Expects SM_HOST, SM_API_KEY,
-  // SM_CLIENT_CERT_FILE, SM_CLIENT_CERT_PASSWORD, SHA1, KEY_ALIAS env vars
-  // from the caller. No-op on non-Windows.
+  // Windows-only. Authenticode-sign using DigiCert KeyLocker (smctl +
+  // signtool). Expects SHA1, KEY_ALIAS, and SM_* env vars from the caller.
+  // Chained in one shell; splitting breaks with NTE_PERM 0x8009002d.
+  // shell: true so cmd.exe preserves the quoted /d argument.
   signWindowsBinary(filePath) {
     if (!isWindows) return Promise.resolve();
-    // Chained in one cmd.exe shell so smctl's KSP session state survives
-    // across signtool. Splitting breaks with NTE_PERM 0x8009002d.
-    // { shell: true } so cmd.exe parses the quoted /d argument as one
-    // token (otherwise argv serialization strips the quotes).
-    // Inheriting cwd from the parent process matches cribl bleat-msi's
-    // working pattern (relative cwd, no explicit override).
     const cmd =
       'smctl windows ksp register && ' +
       'smctl windows certsync --keypair-alias=%key_alias% && ' +
