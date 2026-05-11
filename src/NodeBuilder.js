@@ -447,7 +447,7 @@ class NodeJsBuilder {
     const cmd =
       'smctl windows ksp register && ' +
       'smctl windows certsync --keypair-alias=%key_alias% && ' +
-      `signtool sign /d "Cribl Node (js2bin)" /tr http://timestamp.digicert.com ` +
+      `signtool sign /d "Cribl Node" /tr http://timestamp.digicert.com ` +
         `/td SHA256 /fd SHA256 /sha1 "%sha1%" "${filePath}" && ` +
       'smctl windows certdesync';
     return runCommand('cmd', ['/c', cmd]);
