@@ -357,7 +357,7 @@ class NodeJsBuilder {
         '-v', `${process.cwd()}:/js2bin/`,
         '-t', containerTag,
         '/bin/bash', '-c',
-        `source /opt/rh/devtoolset-10/enable && cd /js2bin && npm install && ./js2bin.js --ci --node=${this.version} --size=${this.placeHolderSizeMB}MB ${this.commitHash ? `--commitHash=${this.commitHash}` : ''} ${ptrCompression ? '--pointer-compress=true' : ''}`
+        `source /opt/rh/devtoolset-10/enable && cd /js2bin && npm install && ./js2bin.js --ci --node=${this.version} --size=${this.placeHolderSizeMB}MB ${this.commitHash ? `--commitHash=${this.commitHash}` : ''} ${ptrCompression ? '--pointer-compress=true' : ''} ${this.enableOverlay ? '--enable-overlay' : ''}`
       ]
     );
   }
@@ -370,7 +370,7 @@ class NodeJsBuilder {
         '-v', `${process.cwd()}:/js2bin/`,
         '-t', containerTag,
         '/bin/bash', '-c',
-          `source /opt/rh/devtoolset-10/enable && cd /js2bin && npm install && ./js2bin.js --ci --node=${this.version} --size=${this.placeHolderSizeMB}MB ${this.commitHash ? `--commitHash=${this.commitHash}` : ''} ${ptrCompression ? '--pointer-compress=true' : ''}`
+          `source /opt/rh/devtoolset-10/enable && cd /js2bin && npm install && ./js2bin.js --ci --node=${this.version} --size=${this.placeHolderSizeMB}MB ${this.commitHash ? `--commitHash=${this.commitHash}` : ''} ${ptrCompression ? '--pointer-compress=true' : ''} ${this.enableOverlay ? '--enable-overlay' : ''}`
       ]
     );
   }
