@@ -41,6 +41,35 @@ function extractEmbeddedKey() {
 
 const EMBEDDED_SIGNING_PUBLIC_KEY = extractEmbeddedKey();
 
+function extractEmbeddedEncryptionKey() {
+  let raw;
+  try {
+    raw = process.binding('natives')._js2bin_encryption_key;
+  } catch {
+    return null;
+  }
+  if (typeof raw !== 'string' || raw.length === 0) return null;
+  if (raw.startsWith('`~')) return null;
+  const nullIdx = raw.indexOf('\0');
+  const trimmed = (nullIdx > -1 ? raw.substr(0, nullIdx) : raw).trim();
+  if (!/^[0-9a-fA-F]{64}$/.test(trimmed)) {
+    process.stderr.write('[js2bin] overlay: embedded encryption key is not a valid 64-char hex string. Ignoring.\n');
+    return null;
+  }
+  return trimmed;
+}
+
+const EMBEDDED_ENCRYPTION_KEY = extractEmbeddedEncryptionKey();
+
+function decryptBundle(encData, hexKey) {
+  const iv = encData.slice(0, 12);
+  const authTag = encData.slice(encData.length - 16);
+  const ciphertext = encData.slice(12, encData.length - 16);
+  const decipher = crypto.createDecipheriv('aes-256-gcm', Buffer.from(hexKey, 'hex'), iv);
+  decipher.setAuthTag(authTag);
+  return Buffer.concat([decipher.update(ciphertext), decipher.final()]);
+}
+
 function verifySignature(data, signature, publicKeyPem) {
   try {
     const verify = crypto.createVerify('SHA256');
@@ -55,8 +84,13 @@ function verifySignature(data, signature, publicKeyPem) {
 function tryLoadOverlayBundle(execDir) {
   const overlayDir = process.env.JS2BIN_OVERLAY_DIR || join(execDir, 'overlay', 'current');
 
-  const bundlePath = join(overlayDir, 'bundle.js');
+  const encBundlePath = join(overlayDir, 'bundle.js.enc');
+  const plainBundlePath = join(overlayDir, 'bundle.js');
   const sigPath = join(overlayDir, 'bundle.js.sig');
+
+  // Prefer encrypted bundle over plain bundle. Determine which path to use.
+  const isEncrypted = fs.existsSync(encBundlePath);
+  const bundlePath = isEncrypted ? encBundlePath : plainBundlePath;
 
   // Read the signature first — it's tiny (~70 bytes) — so a missing or empty
   // sig short-circuits before we touch the (potentially much larger) bundle.
@@ -81,6 +115,20 @@ function tryLoadOverlayBundle(execDir) {
     return null;
   }
   if (bundleData.length === 0) return null;
+
+  // Decrypt if the bundle is encrypted.
+  if (isEncrypted) {
+    if (!EMBEDDED_ENCRYPTION_KEY) {
+      process.stderr.write('[js2bin] overlay: bundle.js.enc found but no encryption key embedded — binary was not built with --encryption-key. Falling back to embedded JS.\n');
+      return null;
+    }
+    try {
+      bundleData = decryptBundle(bundleData, EMBEDDED_ENCRYPTION_KEY);
+    } catch (err) {
+      process.stderr.write(`[js2bin] overlay: failed to decrypt bundle.js.enc: ${err.message}. Falling back to embedded JS.\n`);
+      return null;
+    }
+  }
 
   if (!EMBEDDED_SIGNING_PUBLIC_KEY) {
     process.stderr.write('[js2bin] overlay: no embedded signing key — binary was not built with --signing-public-key. Ignoring overlay bundle.\n');

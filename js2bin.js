@@ -33,6 +33,10 @@ command-args: take the form of --name=value
   --signing-public-key: Path to ECDSA P-256 public key PEM file to embed into
                 the binary. Required with --enable-overlay.
                 e.g. --signing-public-key=/path/to/overlay-signing.pub
+  --encryption-key: (opt) Path to a file containing a 64-char hex AES-256 key to embed
+                into the binary for decrypting encrypted overlay bundles (bundle.js.enc).
+                Only valid with --build --enable-overlay.
+                e.g. --encryption-key=/path/to/overlay-encryption.key
 
 --overlay: build a signed overlay bundle from a JS application
   --app:      Path to your (bundled) application
@@ -99,6 +103,7 @@ function parseArgs() {
   args.downloadUrl = (args['download-url'] || undefined);
   args.enableOverlay = (args['enable-overlay'] === true);
   args.signingPublicKey = (args['signing-public-key'] || undefined);
+  args.encryptionKey = (args['encryption-key'] || undefined);
   if (args.signingPublicKey && !args.enableOverlay) {
     return usage('--signing-public-key requires --enable-overlay');
   }
@@ -107,6 +112,12 @@ function parseArgs() {
   }
   if (args.build && args.enableOverlay && !args.signingPublicKey) {
     return usage('--build --enable-overlay requires --signing-public-key');
+  }
+  if (args.encryptionKey && !args.enableOverlay) {
+    return usage('--encryption-key requires --enable-overlay');
+  }
+  if (args.encryptionKey && !args.build) {
+    return usage('--encryption-key is only supported with --build (key is embedded at build time)');
   }
   return args;
 }
@@ -130,7 +141,7 @@ if (args.build) {
   const plats = asArray(args.platform);
   versions.forEach(version => {
     plats.forEach(plat => {
-      const builder = new NodeJsBuilder(args.dir, version, app, args.name, undefined, args.buildVersion, undefined, args.signingPublicKey, args.enableOverlay);
+      const builder = new NodeJsBuilder(args.dir, version, app, args.name, undefined, args.buildVersion, undefined, args.signingPublicKey, args.enableOverlay, args.encryptionKey);
       p = p.then(() => {
         const arch = args.arch || 'x64';
         log(`building for version=${version}, plat=${plat} app=${app}} arch=${arch}`);
@@ -169,7 +180,7 @@ if (args.build) {
     let lastBuilder;
     sizes.forEach(size => {
       archs.forEach(arch => {
-        const builder = new NodeJsBuilder(args.dir, version, size, undefined, undefined, args.buildVersion, args.commitHash, undefined, args.enableOverlay);
+        const builder = new NodeJsBuilder(args.dir, version, size, undefined, undefined, args.buildVersion, args.commitHash, undefined, args.enableOverlay, undefined);
         lastBuilder = builder;
         p = p.then(() => {
           log(`building for version=${version}, size=${size} arch=${arch}`);

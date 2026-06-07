@@ -68,7 +68,7 @@ function parseSemverFromDescribe(desc) {
 }
 
 class NodeJsBuilder {
-  constructor(cwd, version, mainAppFile, appName, patchDir, buildVersion, commitHash, signingPublicKey, enableOverlay) {
+  constructor(cwd, version, mainAppFile, appName, patchDir, buildVersion, commitHash, signingPublicKey, enableOverlay, encryptionKey) {
     this.version = version;
     this.appFile = resolve(mainAppFile);
     this.appName = appName;
@@ -99,6 +99,7 @@ class NodeJsBuilder {
     this.commitHash = commitHash;
     this.signingPublicKey = signingPublicKey || '';
     this.enableOverlay = !!enableOverlay;
+    this.encryptionKey = encryptionKey || '';
   }
 
   static platform() {
@@ -265,6 +266,16 @@ class NodeJsBuilder {
     return Buffer.from('`' + line.repeat(KEY_PLACEHOLDER_SIZE / line.length) + '`');
   }
 
+  // 128 B region reserved for the AES-256-GCM encryption key (64 hex chars).
+  // Written at --ci time and overwritten at --build time when the user passes
+  // --encryption-key. Runtime detects an unmodified slot via the backtick+tilde
+  // sentinel — same scheme as the signing key placeholder.
+  getEncryptionKeyPlaceholderContent() {
+    const ENC_KEY_PLACEHOLDER_SIZE = 128;
+    const line = '~E~n~c~K~e~y~P~\n';
+    return Buffer.from('`' + line.repeat(ENC_KEY_PLACEHOLDER_SIZE / line.length) + '`');
+  }
+
   getAppContentToBundle() {
     const mainAppFileCont = brotliCompressSync(
       fs.readFileSync(this.appFile),
@@ -281,9 +292,10 @@ class NodeJsBuilder {
   prepareNodeJsBuild() {
     // install _third_party_main.js — pick overlay or non-overlay version
     // install app_main.js
-    // install _js2bin_signing_key.js placeholder (when overlay is enabled)
+    // install _js2bin_signing_key.js and _js2bin_encryption_key.js placeholders (when overlay is enabled)
     const appMainPath = this.nodePath('lib', '_js2bin_app_main.js');
     const keyPath = this.nodePath('lib', '_js2bin_signing_key.js');
+    const encKeyPath = this.nodePath('lib', '_js2bin_encryption_key.js');
     return Promise.resolve()
       .then(() => {
         const srcFile = this.enableOverlay ? '_third_party_main_overlay.js' : '_third_party_main.js';
@@ -303,6 +315,7 @@ class NodeJsBuilder {
       .then(() => {
         if (this.enableOverlay) {
           fs.writeFileSync(keyPath, this.getKeyPlaceholderContent());
+          fs.writeFileSync(encKeyPath, this.getEncryptionKeyPlaceholderContent());
         }
       });
   }
@@ -428,12 +441,22 @@ class NodeJsBuilder {
   }
 
   buildFromCached(platform = 'linux', arch = 'x64', outFile = undefined, cache = false, size, customDownloadUrl) {
-    // Validate the signing key before any I/O so bad inputs fail fast without
-    // a cache download.
+    // Validate keys before any I/O so bad inputs fail fast without a cache download.
     let keyPem = null;
     if (this.enableOverlay && this.signingPublicKey) {
       keyPem = fs.readFileSync(this.signingPublicKey);
       assertSupportedKey(keyPem, { type: 'public', source: this.signingPublicKey });
+    }
+
+    let encKeyHex = null;
+    if (this.encryptionKey) {
+      const raw = fs.readFileSync(this.encryptionKey, 'utf8').trim();
+      if (!/^[0-9a-fA-F]{64}$/.test(raw)) {
+        throw new Error(
+          `Encryption key file ${this.encryptionKey} must contain exactly 64 hex characters (32 bytes). Got ${raw.length} characters.`
+        );
+      }
+      encKeyHex = raw;
     }
 
     const mainAppFileCont = this.getAppContentToBundle();
@@ -481,6 +504,20 @@ class NodeJsBuilder {
           execFileCont.fill(0, keyIdx, keyIdx + keyPlaceholder.length);
           keyPem.copy(execFileCont, keyIdx);
           log(`embedded signing public key (${keyPem.length} bytes) at offset ${keyIdx}`);
+        }
+
+        if (encKeyHex) {
+          const encKeyPlaceholder = this.getEncryptionKeyPlaceholderContent();
+          const encKeyIdx = execFileCont.indexOf(encKeyPlaceholder);
+          if (encKeyIdx < 0) {
+            throw new Error(
+              'Could not find encryption-key placeholder in file=' + cachedFile + '. ' +
+              'The cached binary must be built with --ci --enable-overlay.'
+            );
+          }
+          execFileCont.fill(0, encKeyIdx, encKeyIdx + encKeyPlaceholder.length);
+          execFileCont.write(encKeyHex, encKeyIdx);
+          log(`embedded encryption key with ${encKeyHex.length} chars at offset ${encKeyIdx}`);
         }
 
         log(`writing native binary ${outFile}`);

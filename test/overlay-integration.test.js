@@ -347,6 +347,100 @@ describe('Overlay Integration: Full Binary Flow', async () => {
 });
 
 // ---------------------------------------------------------------------------
+// Tier 1: Encrypted Bundle — unit-level tests (no binary required)
+// ---------------------------------------------------------------------------
+
+function generateEncryptionKey() {
+  return crypto.randomBytes(32).toString('hex');
+}
+
+describe('Overlay Integration: Encryption key placeholder', () => {
+  it('getEncryptionKeyPlaceholderContent produces correct sentinel and size', () => {
+    const { NodeJsBuilder } = require('../src/NodeBuilder');
+    const builder = new NodeJsBuilder(undefined, '22.22.0', __filename, undefined, undefined, undefined, undefined, undefined, true);
+    const placeholder = builder.getEncryptionKeyPlaceholderContent();
+    assert.ok(placeholder.includes('~E~n~c~K~e~y~P~'), 'sentinel not found in placeholder');
+    assert.equal(placeholder.length, 130, `expected 130 bytes (backtick + 128B + backtick), got ${placeholder.length}`);
+  });
+});
+
+describe('Overlay Integration: Encryption CLI validation', () => {
+  let tmpDir;
+
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'overlay-enc-cli-'));
+  });
+
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('should reject --encryption-key without --enable-overlay', async () => {
+    const encKeyFile = path.join(tmpDir, 'enc.key');
+    fs.writeFileSync(encKeyFile, generateEncryptionKey());
+    const appFile = path.join(tmpDir, 'app.js');
+    fs.writeFileSync(appFile, 'console.log("x");');
+    const result = await runCli([
+      '--build',
+      `--node=${DEFAULT_NODE_VERSION}`,
+      `--app=${appFile}`,
+      `--encryption-key=${encKeyFile}`
+    ]);
+    assert.notEqual(result.code, 0);
+    assert.ok(
+      /requires --enable-overlay/.test(result.stdout + result.stderr),
+      `Expected error about --enable-overlay, got: ${result.stdout}${result.stderr}`
+    );
+  });
+
+  it('should reject --encryption-key on --ci', async () => {
+    const encKeyFile = path.join(tmpDir, 'enc.key');
+    fs.writeFileSync(encKeyFile, generateEncryptionKey());
+    const result = await runCli([
+      '--ci',
+      `--node=${DEFAULT_NODE_VERSION}`,
+      '--size=2MB',
+      '--enable-overlay',
+      `--encryption-key=${encKeyFile}`
+    ]);
+    assert.notEqual(result.code, 0);
+    assert.ok(
+      /only supported with --build/.test(result.stdout + result.stderr),
+      `Expected error about --build, got: ${result.stdout}${result.stderr}`
+    );
+  });
+
+  it('should reject an invalid encryption key (wrong length)', async () => {
+    const { NodeJsBuilder } = require('../src/NodeBuilder');
+    const encKeyFile = path.join(tmpDir, 'bad.key');
+    fs.writeFileSync(encKeyFile, 'deadbeef'); // 8 chars, not 64
+    const kp = generateKeypair();
+    const sigKeyFile = path.join(tmpDir, 'signing.pub');
+    fs.writeFileSync(sigKeyFile, kp.publicKey);
+    const builder = new NodeJsBuilder(tmpDir, '22.22.0', __filename, undefined, undefined, undefined, undefined, sigKeyFile, true, encKeyFile);
+    // Provide a synthetic binary buffer with both placeholders so buildFromCached
+    // can run without a real network download.
+    const dummyBin = path.join(tmpDir, 'dummy-bin');
+    const buf = Buffer.concat([
+      builder.getPlaceholderContent(2),
+      builder.getKeyPlaceholderContent(),
+      builder.getEncryptionKeyPlaceholderContent()
+    ]);
+    fs.writeFileSync(dummyBin, buf);
+    builder.downloadCachedBuild = () => Promise.resolve(dummyBin);
+    try {
+      await builder.buildFromCached('linux', 'x64', path.join(tmpDir, 'out'), true);
+      assert.fail('Expected an error for invalid encryption key');
+    } catch (err) {
+      assert.ok(
+        /64 hex/.test(err.message) || /64-char/.test(err.message),
+        `Expected hex-length error, got: ${err.message}`
+      );
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
 // CLI validation: --signing-public-key lives on --build, not --ci
 // ---------------------------------------------------------------------------
 
