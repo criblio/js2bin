@@ -182,14 +182,14 @@ mod.id = '.'; // main module
 mod.filename = filename; // dirname of this is used by require
 process.mainModule = mod; // main module
 
-let decompressedSource;
-try {
-  decompressedSource = brotliDecompressSync(Buffer.from(activeSource, 'base64'), { chunkSize: 128 * 1024 * 1024 }).toString();
-} catch (err) {
-  if (activeSource !== embeddedSource) {
-    process.stderr.write(`[js2bin] overlay: failed to decompress overlay bundle: ${err.message}. Falling back to embedded JS.\n`);
-    decompressedSource = brotliDecompressSync(Buffer.from(embeddedSource, 'base64'), { chunkSize: 128 * 1024 * 1024 }).toString();
-  } else {
+function decompressActiveSource() {
+  try {
+    return brotliDecompressSync(Buffer.from(activeSource, 'base64'), { chunkSize: 128 * 1024 * 1024 }).toString();
+  } catch (err) {
+    if (activeSource !== embeddedSource) {
+      process.stderr.write(`[js2bin] overlay: failed to decompress overlay bundle: ${err.message}. Falling back to embedded JS.\n`);
+      return brotliDecompressSync(Buffer.from(embeddedSource, 'base64'), { chunkSize: 128 * 1024 * 1024 }).toString();
+    }
     throw err;
   }
 }
@@ -207,6 +207,6 @@ if (cluster.worker) {
   process.argv.splice(1, 0, __filename); // don't mess with argv in clustering
 }
 
-${decompressedSource}
+${decompressActiveSource()}
 
 `, filename);
