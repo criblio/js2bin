@@ -153,7 +153,40 @@ function fetch(url, headers) {
   });
 }
 
-function download(url, toFile, headers) {
+// Default GitHub hosts used to locate the Releases API record for a download
+// URL. Mutable via `__setGithubHostsForTest` so tests can redirect the lookup
+// at a local HTTP server without going to github.com.
+let githubReleaseHost = 'github.com';
+let githubApiBase = 'https://api.github.com';
+
+function __setGithubHostsForTest({ releaseHost, apiBase } = {}) {
+  if (releaseHost !== undefined) githubReleaseHost = releaseHost;
+  if (apiBase !== undefined) githubApiBase = apiBase;
+}
+
+function getExpectedSha256(url, headers) {
+  let parsed;
+  try { parsed = new URL(url); } catch { return Promise.resolve(null); }
+  if (parsed.host !== githubReleaseHost) return Promise.resolve(null);
+  // Expected path: /<owner>/<repo>/releases/download/<tag>/<asset...>
+  const parts = parsed.pathname.split('/').filter(Boolean);
+  if (parts.length < 6 || parts[2] !== 'releases' || parts[3] !== 'download') {
+    return Promise.resolve(null);
+  }
+  const [owner, repo, , , tag, ...assetParts] = parts;
+  const assetName = decodeURIComponent(assetParts.join('/'));
+  const apiUrl = `${githubApiBase}/repos/${owner}/${repo}/releases/tags/${tag}`;
+  return fetch(apiUrl, headers).then(body => {
+    const release = JSON.parse(body);
+    if (!release || !Array.isArray(release.assets)) return null;
+    const asset = release.assets.find(a => a.name === assetName);
+    if (!asset || typeof asset.digest !== 'string') return null;
+    const dm = /^sha256:([0-9a-f]{64})$/i.exec(asset.digest);
+    return dm ? dm[1].toLowerCase() : null;
+  });
+}
+
+function streamDownload(url, toFile, headers) {
   return new Promise((resolve, reject) => {
     if (!url || url.length === 0) {
       throw new Error(`Invalid Argument - url [${url}] is undefined or empty!`);
@@ -183,20 +216,50 @@ function download(url, toFile, headers) {
           redirUrl.protocol = origUrl.protocol;
         }
         log('following redirect ...');
-        return download(redirUrl.toString(), toFile, headers).then(resolve, reject);
+        return streamDownload(redirUrl.toString(), toFile, headers).then(resolve, reject);
       }
       if (res.statusCode >= 400) {
         return reject(new Error(`Non-OK response, statusCode=${res.statusCode}, url=${url}`));
       }
       res.on('error', reject);
       mkdirp(dirname(toFile)).then(() => {
+        const hash = crypto.createHash('sha256');
+        res.on('data', chunk => hash.update(chunk));
         const outFile = fs.createWriteStream(toFile);
-        outFile.on('finish', () => resolve(toFile));
+        outFile.on('error', reject);
+        outFile.on('finish', () => resolve({ file: toFile, sha256: hash.digest('hex') }));
         res.pipe(outFile);
       });
     });
+    req.on('error', reject);
     req.end();
-  })
+  });
+}
+
+function download(url, toFile, headers) {
+  return streamDownload(url, toFile, headers)
+    .then(({ file, sha256 }) =>
+      getExpectedSha256(url, headers)
+        .catch(err => {
+          log(`WARN: failed to look up checksum for ${url}: ${err.message}; skipping integrity verification`);
+          return null;
+        })
+        .then(expected => {
+          if (!expected) {
+            log(`WARN: no published checksum available for ${url}; skipping integrity verification`);
+            return file;
+          }
+          if (sha256 !== expected) {
+            const mismatch = new Error(
+              `Checksum mismatch for ${url}: expected sha256:${expected}, got sha256:${sha256}`
+            );
+            mismatch.code = 'ERR_CHECKSUM_MISMATCH';
+            throw mismatch;
+          }
+          log(`verified sha256:${sha256} for ${file}`);
+          return file;
+        })
+    )
     .catch(err => {
       try { fs.unlinkSync(toFile); } catch (ignore) {
       // fail through
@@ -380,4 +443,6 @@ module.exports = {
   renameAsync,
   patchFile,
   assertSupportedKey,
+  getExpectedSha256,
+  __setGithubHostsForTest,
 };
