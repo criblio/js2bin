@@ -1,5 +1,5 @@
 
-const { log, download, upload, deleteArtifact, getAssetIdByName, fetch, mkdirp, rmrf, copyFileAsync, runCommand, renameAsync, patchFile, assertSupportedKey } = require('./util');
+const { log, download, upload, deleteArtifact, getAssetIdByName, fetch, mkdirp, rmrf, copyFileAsync, runCommand, renameAsync, patchFile, assertSupportedKey, verifyGpgSignature } = require('./util');
 const { brotliCompressSync, createGunzip } = require('zlib');
 const zlib = require('zlib');
 const { join, dirname, basename, parse, resolve } = require('path');
@@ -169,6 +169,13 @@ class NodeJsBuilder {
       .then(() => this.version.split('.')[0] >= 15 ? this.applyPatches() : Promise.resolve())
   }
 
+  cachedBuildUrl(platform, arch, customDownloadUrl, placeHolderSizeMB) {
+    placeHolderSizeMB = placeHolderSizeMB || this.placeHolderSizeMB;
+    const name = buildName(platform, arch, placeHolderSizeMB, this.version, this.buildVersion, this.enableOverlay);
+    const baseUrl = customDownloadUrl || `https://github.com/criblio/js2bin/releases/download/v${pkg.version}/`;
+    return `${baseUrl}${name}`;
+  }
+
   downloadCachedBuild(platform, arch, customDownloadUrl, placeHolderSizeMB) {
     placeHolderSizeMB = placeHolderSizeMB || this.placeHolderSizeMB;
     const name = buildName(platform, arch, placeHolderSizeMB, this.version, this.buildVersion, this.enableOverlay);
@@ -177,8 +184,7 @@ class NodeJsBuilder {
       log(`build name=${name} already downloaded, using it`);
       return Promise.resolve(filename);
     }
-    const baseUrl = customDownloadUrl || `https://github.com/criblio/js2bin/releases/download/v${pkg.version}/`;
-    const url = `${baseUrl}${name}`;
+    const url = this.cachedBuildUrl(platform, arch, customDownloadUrl, placeHolderSizeMB);
     return download(url, filename);
   }
 
@@ -440,7 +446,7 @@ class NodeJsBuilder {
       .catch(err => this.printDiskUsage().then(() => { throw err; }));
   }
 
-  buildFromCached(platform = 'linux', arch = 'x64', outFile = undefined, cache = false, size, customDownloadUrl) {
+  buildFromCached(platform = 'linux', arch = 'x64', outFile = undefined, cache = false, size, customDownloadUrl, gpgVerify = undefined) {
     // Validate keys before any I/O so bad inputs fail fast without a cache download.
     let keyPem = null;
     if (this.enableOverlay && this.signingPublicKey) {
@@ -468,7 +474,11 @@ class NodeJsBuilder {
 
     if (size) this.placeHolderSizeMB = parseInt( size.toUpperCase().replaceAll('MB', '') )
 
+    const binaryUrl = this.cachedBuildUrl(platform, arch, customDownloadUrl);
     return this.downloadCachedBuild(platform, arch, customDownloadUrl)
+      .then(cachedFile => gpgVerify
+        ? verifyGpgSignature(cachedFile, { binaryUrl, sigUrl: gpgVerify.sigUrl, keyPath: gpgVerify.keyPath }).then(() => cachedFile)
+        : cachedFile)
       .then(cachedFile => {
         const placeholder = this.getPlaceholderContent(this.placeHolderSizeMB);
 

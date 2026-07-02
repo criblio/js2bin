@@ -28,6 +28,15 @@ command-args: take the form of --name=value
               e.g. --build-version=v2
   --download-url: (opt) Custom URL to download pre-built binaries from
                 e.g. --download-url=https://example.com/binaries/
+  --require-signature: (opt) Require a valid GPG signature on the downloaded
+                binary before use. Fails hard if the signature, public key, or
+                gpg tool is missing or verification fails (no silent skip).
+  --gpg-signature-url: (opt) URL of the detached .asc signature (or set
+                JS2BIN_GPG_SIGNATURE_URL). Defaults to the binary URL with a
+                .asc suffix. Only used with --require-signature.
+  --gpg-key-path: (opt) Path to the armored public key to verify against (or set
+                JS2BIN_GPG_KEY_PATH). Defaults to the key committed at
+                keys/release-signing.asc. Only used with --require-signature.
   --enable-overlay: (opt) Use an overlay-enabled cached binary (built via --ci --enable-overlay).
                     Disabled by default.
   --signing-public-key: Path to ECDSA P-256 public key PEM file to embed into
@@ -101,6 +110,9 @@ function parseArgs() {
   args.ptrCompression = (args['pointer-compress'] == 'true');
   args.buildVersion = (args['build-version'] || 'v1');
   args.downloadUrl = (args['download-url'] || undefined);
+  args.requireSignature = (args['require-signature'] === true);
+  args.gpgSignatureUrl = (args['gpg-signature-url'] || process.env.JS2BIN_GPG_SIGNATURE_URL || undefined);
+  args.gpgKeyPath = (args['gpg-key-path'] || process.env.JS2BIN_GPG_KEY_PATH || undefined);
   args.enableOverlay = (args['enable-overlay'] === true);
   args.signingPublicKey = (args['signing-public-key'] || undefined);
   args.encryptionKey = (args['encryption-key'] || undefined);
@@ -146,7 +158,10 @@ if (args.build) {
         const arch = args.arch || 'x64';
         log(`building for version=${version}, plat=${plat} app=${app}} arch=${arch}`);
         const outName = args.name ? `${args.name}-${plat}-${arch}` : undefined;
-        return builder.buildFromCached(plat, arch, outName, args.cache, args.size, args.downloadUrl);
+        const gpgVerify = args.requireSignature
+          ? { sigUrl: args.gpgSignatureUrl, keyPath: args.gpgKeyPath }
+          : undefined;
+        return builder.buildFromCached(plat, arch, outName, args.cache, args.size, args.downloadUrl, gpgVerify);
       });
     });
   });
