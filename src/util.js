@@ -1,6 +1,7 @@
 const http = require('http');
 const https = require('https');
 const crypto = require('crypto');
+const os = require('os');
 const { spawn } = require('child_process');
 const { join, dirname } = require('path');
 const { promisify } = require('util');
@@ -205,6 +206,62 @@ function download(url, toFile, headers) {
     });
 }
 
+// Committed public key used to verify release binaries. Trust anchor ships in
+// the package (git-audited), so verification never depends on a key fetched
+// from the same place as the artifact.
+const DEFAULT_KEY_PATH = join(__dirname, '..', 'keys', 'release-signing.asc');
+
+// Verify a downloaded binary against a detached GPG signature and a committed
+// public key. Explicit and mandatory: the caller opts in (via --require-signature)
+// and this fails hard on ANY problem (no gpg, no signature, bad key, bad sig) -
+// there is no silent skip.
+//
+// opts: { binaryUrl, sigUrl?, keyPath?, headers? }
+//   sigUrl  - defaults to `${binaryUrl}.asc`
+//   keyPath - defaults to the committed DEFAULT_KEY_PATH
+function verifyGpgSignature(file, opts = {}) {
+  const { binaryUrl, headers } = opts;
+  const sigUrl = opts.sigUrl || `${binaryUrl}.asc`;
+  const keyPath = opts.keyPath || DEFAULT_KEY_PATH;
+
+  if (!fs.existsSync(keyPath)) {
+    return Promise.reject(sigError(`gpg public key not found at ${keyPath}`));
+  }
+
+  const tmpDir = fs.mkdtempSync(join(os.tmpdir(), 'js2bin-gpg-'));
+  const sigFile = join(tmpDir, 'sig.asc');
+  const keyringFile = join(tmpDir, 'keyring.gpg');
+  const cleanup = () => { try { rmrf(tmpDir, 3); } catch (ignore) { /* best effort */ } };
+
+  // Verify with `gpgv` against a keyring built from the committed public key,
+  // rather than `gpg --import` + `gpg --verify`. gpg insists on talking to
+  // gpg-agent even for public-key operations and exits nonzero when the agent
+  // is broken (e.g. git-bash gpg on Windows CI). gpgv is the standalone verify
+  // tool: no agent, no keyring management. `gpg --dearmor` is a pure ASCII->
+  // binary transform (also no agent) to turn the committed .asc key into the
+  // binary keyring gpgv wants.
+  //
+  // gpgv treats a --keyring path with NO slash as a name inside ~/.gnupg. On
+  // Windows the paths are backslash-separated (C:\...), which the MSYS gpgv
+  // sees as slash-less and mis-resolves. Convert to forward slashes (valid on
+  // Windows, and gpgv then uses the path literally).
+  const fwd = (p) => p.replace(/\\/g, '/');
+  return download(sigUrl, sigFile, headers)
+    .catch(err => { throw sigError(`could not fetch signature ${sigUrl}: ${err.message}`); })
+    .then(() => runCommand('gpg', ['--batch', '--no-tty', '--yes', '--dearmor', '-o', keyringFile, keyPath], undefined, undefined, true)
+      .catch(() => { throw sigError(`failed to prepare public key ${keyPath}`); }))
+    .then(() => runCommand('gpgv', ['--keyring', fwd(keyringFile), fwd(sigFile), fwd(file)], undefined, undefined, true)
+      .catch(() => { throw sigError(`GPG signature verification failed for ${file}`); }))
+    .then(() => { log(`verified GPG signature for ${file}`); cleanup(); })
+    .catch(err => { cleanup(); throw err; });
+}
+
+function sigError(message) {
+  const e = new Error(message);
+  e.code = 'ERR_GPG_VERIFY';
+  return e;
+}
+
 function upload(url, file, headers) {
   const fileStream = fs.createReadStream(file);
   return new Promise((resolve, reject) => {
@@ -380,4 +437,5 @@ module.exports = {
   renameAsync,
   patchFile,
   assertSupportedKey,
+  verifyGpgSignature
 };

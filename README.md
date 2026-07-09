@@ -72,6 +72,16 @@ js2bin --build --cache --node=10.13.0 --app=/path/to/my/app.js --name=CoolAppNam
                     binary built with --enable-overlay via --ci.
   --signing-public-key: Embed an ECDSA P-256 public key into the binary.
                 Required with --enable-overlay.
+  --require-signature: (opt) Verify the downloaded prebuilt binary against a
+                detached GPG signature before use. Fails hard if the signature,
+                public key, or gpg is missing or verification fails. Requires gpg
+                (and gpgv) on PATH.
+  --gpg-signature-url: (opt) URL of the detached .asc signature. Defaults to the
+                binary URL with a .asc suffix. Also settable via
+                JS2BIN_GPG_SIGNATURE_URL. Only used with --require-signature.
+  --gpg-key-path: (opt) Path to the armored public key to verify against.
+                Defaults to the bundled keys/release-signing.asc. Also settable
+                via JS2BIN_GPG_KEY_PATH. Only used with --require-signature.
 
 --overlay: build a signed overlay bundle from a JS application
   --app:         Path to your (bundled) application
@@ -93,6 +103,24 @@ js2bin --build --cache --node=10.13.0 --app=/path/to/my/app.js --name=CoolAppNam
 
 
 ```
+
+# Verifying downloaded binaries
+
+When `--build` downloads a prebuilt Node binary from a release, you can require it to carry a valid detached GPG signature before js2bin embeds your app into it. This is opt-in via `--require-signature` and fails the build hard if verification does not pass — there is no silent skip.
+
+```bash
+js2bin --build --app=/path/to/app.js --node=22.22.0 --name=MyApp --require-signature
+```
+
+With `--require-signature`:
+
+- The signature is fetched from `--gpg-signature-url` (or `JS2BIN_GPG_SIGNATURE_URL`, or the binary URL with a `.asc` suffix by default).
+- It is verified against the public key at `--gpg-key-path` (or `JS2BIN_GPG_KEY_PATH`, or the bundled `keys/release-signing.asc` by default).
+- The build fails if the signature is missing, the key is missing, `gpg`/`gpgv` is unavailable, or the signature does not verify.
+
+Verification uses `gpgv` against a keyring derived from the public key, so it needs `gpg` and `gpgv` on `PATH` but does not depend on a running `gpg-agent`. Without `--require-signature`, downloads are not signature-checked (behavior is unchanged).
+
+This is independent of the overlay signing described below: this verifies the prebuilt binary you download, while overlay signing verifies JavaScript bundles at runtime.
 
 # Overlay Updates
 
