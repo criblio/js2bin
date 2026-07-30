@@ -114,6 +114,18 @@ describe('verifyGpgSignature (e2e with real gpg)', { skip: !gpgInstalled() }, ()
     await verifyGpgSignature(bin, { binaryUrl, keyPath });
   });
 
+  it('resolves when the keyring lives under a path with a colon (drive-letter shape)', async () => {
+    // A `<letter>:` prefix made gpgv reject the keyring as an invalid resource
+    // URL on Windows. A `C:` dir reproduces it on any platform.
+    const colonDir = path.join(work, 'C:');
+    fs.mkdirSync(colonDir, { recursive: true });
+    const bin = path.join(colonDir, 'node-bin-colon');
+    fs.writeFileSync(bin, 'colon path bytes');
+    sign(bin);
+    const binaryUrl = `http://${sigHost}/criblio/js2bin/releases/download/v1.0.9/node-bin-colon`;
+    await verifyGpgSignature(bin, { binaryUrl, keyPath });
+  });
+
   it('uses an explicit sigUrl when provided', async () => {
     const bin = path.join(work, 'node-bin-explicit');
     fs.writeFileSync(bin, 'explicit sig url bytes');
