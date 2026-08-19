@@ -1,0 +1,13 @@
+version: 2
+
+# Socket SCA scope configuration.
+#
+# In-scope (NOT listed below):
+#   - Root package.json (Node.js)
+#   - src/ (production code)
+#
+# Out-of-scope: see projectIgnorePaths below.
+# Socket always ignores .git, node_modules, coverage, dist — not repeated here.
+
+projectIgnorePaths:
+  - "test/**"
