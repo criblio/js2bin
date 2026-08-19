@@ -1,0 +1,26 @@
+# Semgrep scan scope — production code only.
+# NOTE: this file OVERRIDES Semgrep's default ignore list; the built-in
+# defaults are carried forward below. Without this file (or without these
+# defaults), node_modules/, dist/, vendor/, build/, .git, etc. come back
+# into SAST scope and generate noise.
+# Docs: https://docs.semgrep.dev/ignoring-files-folders-code
+#
+# Managed by repo-configure skill (cribl-product-security). 2026-08-19.
+# --- Semgrep defaults (carry forward — do not remove) ---
+.git
+.svn
+.hg
+build/
+vendor/
+dist/
+*.min.js
+.env/
+.tox/
+node_modules/
+.npm/
+.yarn/
+.venv/
+__pycache__/
+
+# --- Repo-specific non-production paths ---
+test/
