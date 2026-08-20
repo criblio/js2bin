@@ -321,11 +321,18 @@ class NodeJsBuilder {
     const encKeyPath = this.nodePath('lib', '_js2bin_encryption_key.js');
     return Promise.resolve()
       .then(() => {
+        // Overlay and mapped-source are orthogonal -- overlay picks WHICH source runs, mapped-source
+        // picks HOW it reaches V8 -- so the two compose, and their combination has its own bootstrap.
+        // Without that entry mappedSource silently displaced the overlay bootstrap and produced a
+        // binary that was not overlay-capable at all despite --enable-overlay being passed.
         const srcFile = this.uncompressedSource
           ? '_third_party_main_uncompressed_source.js'
           : this.mappedSource
-            ? '_third_party_main_mapped_source.js'
+            ? (this.enableOverlay
+              ? '_third_party_main_overlay_mapped_source.js'
+              : '_third_party_main_mapped_source.js')
             : this.enableOverlay ? '_third_party_main_overlay.js' : '_third_party_main.js';
+        log(`bootstrap: ${srcFile}`);
         const tpmContent = fs.readFileSync(join(this.srcDir, srcFile), 'utf8');
         const destPath = this.nodePath('lib', '_third_party_main.js');
         fs.writeFileSync(destPath, tpmContent);
