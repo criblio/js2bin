@@ -1,0 +1,141 @@
+--- a/src/node.cc
++++ b/src/node.cc
+@@ -134,6 +134,21 @@
+ #include <tuple>
+ #include <vector>
+ 
++// js2bin: platform headers for mapping the app source as an external string. See namespace js2bin below.
++#if defined(_WIN32)
++#ifndef WIN32_LEAN_AND_MEAN
++#define WIN32_LEAN_AND_MEAN
++#endif
++#ifndef NOMINMAX
++#define NOMINMAX
++#endif
++#include <windows.h>
++#else
++#include <fcntl.h>
++#include <sys/mman.h>
++#include <sys/stat.h>
++#endif
++
+ namespace node {
+ 
+ using v8::Array;
+@@ -147,6 +162,107 @@
+ using v8::V8;
+ using v8::Value;
+ 
++// ---------------------------------------------------------------------------
++// js2bin: expose internalBinding('js2bin').mapFileAsExternalString(path)
++//
++// The app bundle is ~26 MB of ASCII. Handing it to V8 as an ordinary string leaves a private copy on the
++// heap of every process, which V8 keeps alive for the process lifetime so it can lazily compile functions
++// that have not run yet. Mapping the file instead makes those bytes file-backed and shareable, costing
++// ~0 Private Working Set per process. Measured: the equivalent change with the source shipped
++// uncompressed moved node total PWS by -49.0 MB on a two-process Cribl Edge node.
++//
++// Uses only public V8 API and platform calls -- no Node internal helpers -- to keep this patch small and
++// portable across Node versions. On any failure it returns undefined and the JS caller falls back to the
++// historical in-heap path rather than refusing to boot.
++// ---------------------------------------------------------------------------
++namespace js2bin {
++
++class MappedOneByteSource : public v8::String::ExternalOneByteStringResource {
++ public:
++  MappedOneByteSource(const char* data, size_t length)
++      : data_(data), length_(length) {}
++  const char* data() const override { return data_; }
++  size_t length() const override { return length_; }
++  // Deliberately does not unmap: V8 may consult the source at any point for lazy compilation, so the
++  // mapping must outlive every use, i.e. the isolate.
++  void Dispose() override {}
++
++ private:
++  const char* data_;
++  size_t length_;
++};
++
++static void MapFileAsExternalString(
++    const v8::FunctionCallbackInfo<Value>& args) {
++  Isolate* isolate = args.GetIsolate();
++  if (args.Length() < 1 || !args[0]->IsString()) return;
++  v8::String::Utf8Value path(isolate, args[0]);
++
++  const char* base = nullptr;
++  size_t size = 0;
++
++#if defined(_WIN32)
++  HANDLE file = CreateFileA(*path,
++                            GENERIC_READ,
++                            FILE_SHARE_READ | FILE_SHARE_DELETE,
++                            nullptr,
++                            OPEN_EXISTING,
++                            FILE_ATTRIBUTE_NORMAL,
++                            nullptr);
++  if (file == INVALID_HANDLE_VALUE) return;
++  LARGE_INTEGER li;
++  if (!GetFileSizeEx(file, &li) || li.QuadPart <= 0) {
++    CloseHandle(file);
++    return;
++  }
++  HANDLE mapping =
++      CreateFileMappingA(file, nullptr, PAGE_READONLY, 0, 0, nullptr);
++  CloseHandle(file);  // the mapping keeps the pages alive
++  if (mapping == nullptr) return;
++  void* view = MapViewOfFile(mapping, FILE_MAP_READ, 0, 0, 0);
++  CloseHandle(mapping);
++  if (view == nullptr) return;
++  base = static_cast<const char*>(view);
++  size = static_cast<size_t>(li.QuadPart);
++#else
++  int fd = open(*path, O_RDONLY);
++  if (fd < 0) return;
++  struct stat st;
++  if (fstat(fd, &st) != 0 || st.st_size <= 0) {
++    close(fd);
++    return;
++  }
++  void* view = mmap(nullptr, st.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
++  close(fd);
++  if (view == MAP_FAILED) return;
++  base = static_cast<const char*>(view);
++  size = static_cast<size_t>(st.st_size);
++#endif
++
++  MappedOneByteSource* resource = new MappedOneByteSource(base, size);
++  Local<v8::String> str;
++  if (!v8::String::NewExternalOneByte(isolate, resource).ToLocal(&str)) return;
++  args.GetReturnValue().Set(str);
++}
++
++static void Initialize(Local<Object> target,
++                       Local<Value> unused,
++                       Local<Context> context,
++                       void* priv) {
++  Isolate* isolate = context->GetIsolate();
++  Local<v8::FunctionTemplate> tmpl =
++      v8::FunctionTemplate::New(isolate, MapFileAsExternalString);
++  Local<Function> fn;
++  if (!tmpl->GetFunction(context).ToLocal(&fn)) return;
++  target
++      ->Set(context,
++            v8::String::NewFromUtf8Literal(isolate, "mapFileAsExternalString"),
++            fn)
++      .Check();
++}
++
++}  // namespace js2bin
++
+ namespace per_process {
+ 
+ // node_dotenv.h
+@@ -1651,6 +1767,8 @@
+ 
+ }  // namespace node
+ 
++NODE_BINDING_CONTEXT_AWARE_INTERNAL(js2bin, node::js2bin::Initialize)
++
+ #if !HAVE_INSPECTOR
+ void Initialize() {}
+ 

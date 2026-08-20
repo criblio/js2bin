@@ -1,0 +1,10 @@
+--- a/src/node_binding.cc
++++ b/src/node_binding.cc
+@@ -48,6 +48,7 @@
+   V(credentials)                                                               \
+   V(encoding_binding)                                                          \
+   V(errors)                                                                    \
++  V(js2bin)                                                                    \
+   V(fs)                                                                        \
+   V(fs_dir)                                                                    \
+   V(fs_event_wrap)                                                             \
