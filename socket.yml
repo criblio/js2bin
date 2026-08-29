@@ -1,0 +1,10 @@
+version: 2
+
+# Socket SCA scope configuration (ProdSec chief enrollment).
+#
+# In-scope (production): root package.json/package-lock.json + src/.
+# Out-of-scope: test/ fixtures and harness.
+# Schema reference: https://docs.socket.dev/docs/socket-yml
+
+projectIgnorePaths:
+  - "test/**"
