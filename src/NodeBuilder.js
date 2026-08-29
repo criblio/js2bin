@@ -100,6 +100,18 @@ class NodeJsBuilder {
     this.signingPublicKey = signingPublicKey || '';
     this.enableOverlay = !!enableOverlay;
     this.encryptionKey = encryptionKey || '';
+    // Uncompressed-source mode: store the app as raw source rather than base64(brotli(...)). Node's own
+    // builtin loader then hands V8 a file-backed external string straight out of the executable's
+    // read-only data, so no process materialises a private copy of the source on its heap. Costs binary
+    // size, since the placeholder must hold the source uncompressed.
+    // See _third_party_main_uncompressed_source.js.
+    this.uncompressedSource = process.env.JS2BIN_UNCOMPRESSED_SOURCE === '1';
+    // Mapped-source mode: the payload stays compressed in the binary, so the placeholder and the
+    // executable do not grow, but at startup the decompressed source is materialised to a file once and
+    // mapped read-only. V8 then compiles from a file-backed external string that the parent and every
+    // worker share, instead of each process holding a private copy of the source on its heap for the
+    // lifetime of the process. See _third_party_main_mapped_source.js.
+    this.mappedSource = process.env.JS2BIN_MAPPED_SOURCE === '1';
   }
 
   static platform() {
@@ -283,6 +295,11 @@ class NodeJsBuilder {
   }
 
   getAppContentToBundle() {
+    if (this.uncompressedSource) {
+      // Raw, uncompressed source. Padded to exactly fill the reserved region in buildFromCached() with a
+      // trailing line comment, so the whole region stays valid JS and the runtime never has to slice it.
+      return fs.readFileSync(this.appFile, 'latin1');
+    }
     const mainAppFileCont = brotliCompressSync(
       fs.readFileSync(this.appFile),
       {
@@ -304,7 +321,18 @@ class NodeJsBuilder {
     const encKeyPath = this.nodePath('lib', '_js2bin_encryption_key.js');
     return Promise.resolve()
       .then(() => {
-        const srcFile = this.enableOverlay ? '_third_party_main_overlay.js' : '_third_party_main.js';
+        // Overlay and mapped-source are orthogonal -- overlay picks WHICH source runs, mapped-source
+        // picks HOW it reaches V8 -- so the two compose, and their combination has its own bootstrap.
+        // Without that entry mappedSource silently displaced the overlay bootstrap and produced a
+        // binary that was not overlay-capable at all despite --enable-overlay being passed.
+        const srcFile = this.uncompressedSource
+          ? '_third_party_main_uncompressed_source.js'
+          : this.mappedSource
+            ? (this.enableOverlay
+              ? '_third_party_main_overlay_mapped_source.js'
+              : '_third_party_main_mapped_source.js')
+            : this.enableOverlay ? '_third_party_main_overlay.js' : '_third_party_main.js';
+        log(`bootstrap: ${srcFile}`);
         const tpmContent = fs.readFileSync(join(this.srcDir, srcFile), 'utf8');
         const destPath = this.nodePath('lib', '_third_party_main.js');
         fs.writeFileSync(destPath, tpmContent);
@@ -329,6 +357,12 @@ class NodeJsBuilder {
   async patchThirdPartyMain() {
     await patchFile(this.nodeSrcDir, join(this.patchDir, 'run_third_party_main.js.patch'));
     await patchFile(this.nodeSrcDir, join(this.patchDir, 'node.cc.patch'));
+    // Adds internalBinding('js2bin').mapFileAsExternalString(path), which returns a V8 external
+    // one-byte string over a read-only file mapping. Applied unconditionally so every binary carries the
+    // capability; it is only used by _third_party_main_mapped_source.js. Must run after node.cc.patch,
+    // whose hunk shifts the line numbers these are offset against.
+    await patchFile(this.nodeSrcDir, join(this.patchDir, 'node_mapped_source.cc.patch'));
+    await patchFile(this.nodeSrcDir, join(this.patchDir, 'node_binding_mapped_source.cc.patch'));
   }
 
   async patchNodeCompileIssues() {
@@ -410,7 +444,7 @@ class NodeJsBuilder {
       .then(() => this.commitHash ? this.downloadExpandNodeSourceWithCommit() : this.downloadExpandNodeSource())
       .then(() => this.prepareNodeJsBuild())
       .then(() => {
-        if (isWindows) { return runCommand(this.make, makeArgs, this.nodeSrcDir); }
+        if (isWindows) { return runCommand(this.make, makeArgs, this.nodeSrcDir, { ...process.env, CL: '/MP' }); }
         if (isDarwin) {
           let buildArch = darwinArch[NodeJsBuilder.getArch(arch)];
           if (!buildArch) {
@@ -493,8 +527,23 @@ class NodeJsBuilder {
           throw new Error(`Could not find placeholder in file=${cachedFile}`);
         }
 
+        let contToWrite = mainAppFileCont;
+        if (this.uncompressedSource) {
+          // Fill the reserved region completely, ending in a line comment. NUL padding would force the
+          // runtime to slice the string, and a SlicedString over an external parent may be flattened when
+          // compiled -- reinstating the ~26 MB private copy this mode exists to remove.
+          const filler = placeholder.length - contToWrite.length - 3;
+          if (filler < 0) {
+            throw new Error(
+              `raw source (${contToWrite.length} bytes) does not fit the reserved ` +
+              `${placeholder.length}-byte region; rebuild --ci with a larger --size`
+            );
+          }
+          contToWrite = contToWrite + '\n//' + '~'.repeat(filler);
+          log(`uncompressed-source mode: ${mainAppFileCont.length} bytes of source + ${filler} bytes of comment padding`);
+        }
         execFileCont.fill(0, placeholderIdx, placeholderIdx + placeholder.length);
-        execFileCont.write(mainAppFileCont, placeholderIdx);
+        execFileCont.write(contToWrite, placeholderIdx, 'latin1');
 
         if (keyPem) {
           const keyPlaceholder = this.getKeyPlaceholderContent();
