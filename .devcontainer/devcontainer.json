@@ -1,0 +1,51 @@
+{ 
+	"name": "Linux js2bin development container",
+	"image": "node:20.18.0-bullseye-slim",
+	"features": {
+		"ghcr.io/devcontainers/features/docker-from-docker:latest": {},
+		"ghcr.io/rocker-org/devcontainer-features/apt-packages:1": {
+		"packages": [
+			"curl",
+			"g++",
+			"git",
+			"make",
+			"nano",
+			"patch",
+			"python3",
+			"procps",
+			"wget"
+		]}
+	},
+	"runArgs": [
+		"--network=host"
+	],
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				"ms-vscode.cpptools",
+				"ms-vscode.cpptools-extension-pack",
+				"dbaeumer.vscode-eslint",
+				"eamodio.gitlens",
+				"esbenp.prettier-vscode",
+				"bierner.markdown-mermaid",
+				"spadin.memento-inputs",
+				"streetsidesoftware.code-spell-checker",
+				"timonwong.shellcheck"
+			]
+		}
+	},
+
+	"containerEnv": {
+		"LANG": "C.UTF-8",
+		"LC_ALL": "C.UTF-8"
+	},
+	// Use 'forwardPorts' to make a list of ports inside the container available locally.
+	// "forwardPorts": [],
+
+	"postCreateCommand": "bash ./.devcontainer/postCreateCommand.sh",
+
+	// Uncomment to connect as root instead. More info: https://aka.ms/dev-containers-non-root.
+	// "remoteUser": "root"
+	"workspaceMount": "source=${localWorkspaceFolder},target=${localWorkspaceFolder},type=bind",
+	"workspaceFolder": "${localWorkspaceFolder}"
+}
