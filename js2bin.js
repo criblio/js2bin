@@ -3,6 +3,7 @@
 const { NodeJsBuilder } = require('./src/NodeBuilder');
 const { OverlayBuilder } = require('./src/OverlayBuilder');
 const { log } = require('./src/util');
+const { COMPAT_STRING_RE } = require('./src/_js2bin_sig_format');
 const fs = require('fs');
 
 function usage(msg) {
@@ -46,12 +47,18 @@ command-args: take the form of --name=value
                 into the binary for decrypting encrypted overlay bundles (bundle.js.enc).
                 Only valid with --build --enable-overlay.
                 e.g. --encryption-key=/path/to/overlay-encryption.key
+  --compat-string: Opaque string (1-64 printable ASCII) embedded into the binary.
+                Only overlays built with the identical --compat-string are loaded.
+                Required with --enable-overlay.
+                e.g. --compat-string=1.2.3
 
 --overlay: build a signed overlay bundle from a JS application
   --app:      Path to your (bundled) application
               e.g. --app=/path/to/app/index.js
   --signing-key: Path to ECDSA P-256 private key PEM file for signing
               e.g. --signing-key=/path/to/overlay-signing.key
+  --compat-string: Must equal the --compat-string of the target binary. Required.
+              e.g. --compat-string=1.2.3
   --output:   (opt) Output directory (default: ./overlay-bundle/)
               e.g. --output=/path/to/output
 
@@ -90,9 +97,9 @@ function parseArgs() {
       return usage();
     }
 
-    const parts = arg.substr(2).split('=', 2);
-    const name = parts[0];
-    const value = parts.length === 1 ? true : parts[1];
+    const eqIdx = arg.indexOf('=');
+    const name = eqIdx < 0 ? arg.substr(2) : arg.slice(2, eqIdx);
+    const value = eqIdx < 0 ? true : arg.slice(eqIdx + 1);
     if (args[name] !== undefined) {
       if (Array.isArray(args[name])) { args[name].push(value); } else { args[name] = [args[name], value]; }
     } else {
@@ -125,6 +132,22 @@ function parseArgs() {
   if (args.build && args.enableOverlay && !args.signingPublicKey) {
     return usage('--build --enable-overlay requires --signing-public-key');
   }
+  args.compatString = (args['compat-string'] || undefined);
+  if (args.compatString !== undefined && (typeof args.compatString !== 'string' || !COMPAT_STRING_RE.test(args.compatString))) {
+    return usage('--compat-string must be 1-64 printable ASCII characters, not starting with `~');
+  }
+  if (args.compatString && args.ci) {
+    return usage('--compat-string is only supported with --build or --overlay');
+  }
+  if (args.compatString && args.build && !args.enableOverlay) {
+    return usage('--compat-string requires --enable-overlay');
+  }
+  if (args.build && args.enableOverlay && !args.compatString) {
+    return usage('--build --enable-overlay requires --compat-string');
+  }
+  if (args.overlay && !args.compatString) {
+    return usage('--overlay requires --compat-string');
+  }
   if (args.encryptionKey && !args.enableOverlay) {
     return usage('--encryption-key requires --enable-overlay');
   }
@@ -153,7 +176,7 @@ if (args.build) {
   const plats = asArray(args.platform);
   versions.forEach(version => {
     plats.forEach(plat => {
-      const builder = new NodeJsBuilder(args.dir, version, app, args.name, undefined, args.buildVersion, undefined, args.signingPublicKey, args.enableOverlay, args.encryptionKey);
+      const builder = new NodeJsBuilder(args.dir, version, app, args.name, undefined, args.buildVersion, undefined, args.signingPublicKey, args.enableOverlay, args.encryptionKey, args.compatString);
       p = p.then(() => {
         const arch = args.arch || 'x64';
         log(`building for version=${version}, plat=${plat} app=${app}} arch=${arch}`);
@@ -178,6 +201,7 @@ if (args.build) {
   const builder = new OverlayBuilder({
     app,
     signingKey: args['signing-key'],
+    compatString: args.compatString,
     output: args.output || undefined,
   });
 

@@ -61,6 +61,24 @@ function extractEmbeddedEncryptionKey() {
 
 const EMBEDDED_ENCRYPTION_KEY = extractEmbeddedEncryptionKey();
 
+// Compat string slot (lib/_js2bin_compat_string.js), stamped at --build time via
+// --compat-string. An overlay loads only if its signed compat string is identical.
+function extractEmbeddedCompatString() {
+  let raw;
+  try {
+    raw = process.binding('natives')._js2bin_compat_string;
+  } catch {
+    return null;
+  }
+  if (typeof raw !== 'string' || raw.length === 0) return null;
+  if (raw.startsWith('`~')) return null;
+  const nullIdx = raw.indexOf('\0');
+  const trimmed = (nullIdx > -1 ? raw.substr(0, nullIdx) : raw).trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+const EMBEDDED_COMPAT_STRING = extractEmbeddedCompatString();
+
 function decryptBundle(encData, hexKey) {
   const iv = encData.slice(0, 12);
   const authTag = encData.slice(encData.length - 16);
@@ -135,7 +153,26 @@ function tryLoadOverlayBundle(execDir) {
     return null;
   }
 
-  if (!verifySignature(bundleData, sigData, EMBEDDED_SIGNING_PUBLIC_KEY)) {
+  if (!EMBEDDED_COMPAT_STRING) {
+    process.stderr.write('[js2bin] overlay: no embedded compat string — binary was not built with --compat-string. Ignoring overlay bundle.\n');
+    return null;
+  }
+
+  // Shared with OverlayBuilder; installed as lib/_js2bin_sig_format.js at --ci.
+  // Required lazily so a missing module only disables overlays (caller catches).
+  const { parseSigFile } = require('_js2bin_sig_format');
+  const sig = parseSigFile(sigData);
+  if (typeof sig === 'string') {
+    process.stderr.write(`[js2bin] overlay: ${sig}. Falling back to embedded JS.\n`);
+    return null;
+  }
+
+  if (sig.compatString !== EMBEDDED_COMPAT_STRING) {
+    process.stderr.write(`[js2bin] overlay: compat string mismatch (overlay=${JSON.stringify(sig.compatString)}, binary=${JSON.stringify(EMBEDDED_COMPAT_STRING)}). Falling back to embedded JS.\n`);
+    return null;
+  }
+
+  if (!verifySignature(Buffer.concat([sig.header, bundleData]), sig.signature, EMBEDDED_SIGNING_PUBLIC_KEY)) {
     process.stderr.write('[js2bin] overlay: signature verification failed — bundle is unsigned or tampered. Falling back to embedded JS.\n');
     return null;
   }

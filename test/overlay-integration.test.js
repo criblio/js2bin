@@ -11,6 +11,7 @@ const { promisify } = require('util');
 const execFileAsync = promisify(execFile);
 
 const CLI_PATH = path.join(__dirname, '..', 'js2bin.js');
+const COMPAT = 'goat-v1';
 
 function generateKeypair() {
   return crypto.generateKeyPairSync('ec', {
@@ -80,6 +81,7 @@ describe('Overlay Integration: Bundle CLI (--overlay)', () => {
       '--overlay',
       `--app=${appFile}`,
       `--signing-key=${keyFile}`,
+      `--compat-string=${COMPAT}`,
       `--output=${outputDir}`,
     ]);
 
@@ -94,6 +96,7 @@ describe('Overlay Integration: Bundle CLI (--overlay)', () => {
       '--overlay',
       `--app=${appFile}`,
       `--signing-key=${keyFile}`,
+      `--compat-string=${COMPAT}`,
       `--output=${outputDir}`,
     ]);
 
@@ -108,15 +111,56 @@ describe('Overlay Integration: Bundle CLI (--overlay)', () => {
       '--overlay',
       `--app=${appFile}`,
       `--signing-key=${keyFile}`,
+      `--compat-string=${COMPAT}`,
       `--output=${outputDir}`,
     ]);
 
     const bundleData = fs.readFileSync(path.join(outputDir, 'bundle.js'));
     const sigData = fs.readFileSync(path.join(outputDir, 'bundle.js.sig'));
+    const header = Buffer.concat([Buffer.from('J2BCOMPAT1'), Buffer.from([0, COMPAT.length]), Buffer.from(COMPAT)]);
+    assert.ok(sigData.subarray(0, header.length).equals(header));
     const verify = crypto.createVerify('SHA256');
-    verify.update(bundleData);
+    verify.update(Buffer.concat([header, bundleData]));
     verify.end();
-    assert.ok(verify.verify({ key: keypair.publicKey, dsaEncoding: 'der' }, sigData));
+    assert.ok(verify.verify({ key: keypair.publicKey, dsaEncoding: 'der' }, sigData.subarray(header.length)));
+  });
+
+  it('should fail without --compat-string', async () => {
+    const result = await runCli([
+      '--overlay',
+      `--app=${appFile}`,
+      `--signing-key=${keyFile}`,
+    ]);
+    assert.notEqual(result.code, 0);
+    assert.match(result.stdout, /--overlay requires --compat-string/);
+  });
+
+  for (const bad of ['x'.repeat(65), 'goat v1', 'goat-\x01', 'goat-🐐', '`~goat']) {
+    it(`should reject invalid --compat-string ${JSON.stringify(bad)}`, async () => {
+      const result = await runCli([
+        '--overlay',
+        `--app=${appFile}`,
+        `--signing-key=${keyFile}`,
+        `--compat-string=${bad}`,
+      ]);
+      assert.notEqual(result.code, 0);
+      assert.match(result.stdout, /--compat-string must be 1-64 printable ASCII/);
+    });
+  }
+
+  it('should keep "=" inside --compat-string value', async () => {
+    const outputDir = path.join(tmpDir, 'out');
+    const result = await runCli([
+      '--overlay',
+      `--app=${appFile}`,
+      `--signing-key=${keyFile}`,
+      '--compat-string=goat=v1',
+      `--output=${outputDir}`,
+    ]);
+    assert.equal(result.code, 0, `CLI failed: ${result.stdout}${result.stderr}`);
+    const sigData = fs.readFileSync(path.join(outputDir, 'bundle.js.sig'));
+    assert.equal(sigData.readUInt16BE(10), 'goat=v1'.length);
+    assert.equal(sigData.subarray(12, 12 + 'goat=v1'.length).toString(), 'goat=v1');
   });
 
   it('should fail without --signing-key', async () => {
@@ -140,6 +184,7 @@ describe('Overlay Integration: Bundle CLI (--overlay)', () => {
       '--overlay',
       '--app=/tmp/does-not-exist-overlay-test.js',
       `--signing-key=${keyFile}`,
+      `--compat-string=${COMPAT}`,
     ]);
     assert.notEqual(result.code, 0);
   });
@@ -187,6 +232,7 @@ describe('Overlay Integration: Full Binary Flow', async () => {
       `--size=${DEFAULT_SIZE}`,
       '--enable-overlay',
       `--signing-public-key=${buildKeyFile}`,
+      `--compat-string=${COMPAT}`,
       '--cache',
       `--name=${binName}`,
       `--platform=${PLATFORM}`,
@@ -234,7 +280,7 @@ describe('Overlay Integration: Full Binary Flow', async () => {
   });
 
   // Helper: build an overlay bundle from source code and place it in a directory
-  async function buildOverlayBundle(appCode, outputDir) {
+  async function buildOverlayBundle(appCode, outputDir, compat = COMPAT) {
     const appFile = createApp(tmpDir, `overlay-app-${Date.now()}.js`, appCode);
     const keyFile = path.join(tmpDir, 'signing.key');
     fs.writeFileSync(keyFile, keypair.privateKey);
@@ -243,6 +289,7 @@ describe('Overlay Integration: Full Binary Flow', async () => {
       '--overlay',
       `--app=${appFile}`,
       `--signing-key=${keyFile}`,
+      `--compat-string=${compat}`,
       `--output=${outputDir}`,
     ]);
     assert.equal(result.code, 0, `Overlay bundle build failed: ${result.stderr}`);
@@ -326,6 +373,68 @@ describe('Overlay Integration: Full Binary Flow', async () => {
       `Empty bundle.js.sig should not produce read-error warning, got stderr: ${result.stderr}`);
   });
 
+  it('should reject overlay built for a different compat string', async (ctx) => {
+    if (skipBinaryTests) return ctx.skip('No overlay-enabled cached binary available');
+    const overlayCurrentDir = path.join(tmpDir, 'overlay', 'current');
+    await buildOverlayBundle('console.log("old-version");', overlayCurrentDir, 'goat-v0');
+
+    const result = await runBinary(binPath);
+    assert.ok(result.stdout.includes('embedded-ok'), `Expected embedded fallback, got: ${result.stdout}`);
+    assert.ok(result.stderr.includes('overlay="goat-v0"') && result.stderr.includes(`binary="${COMPAT}"`),
+      `Expected both compat strings in stderr, got: ${result.stderr}`);
+  });
+
+  it('should reject legacy raw-DER signature', async (ctx) => {
+    if (skipBinaryTests) return ctx.skip('No overlay-enabled cached binary available');
+    const overlayCurrentDir = path.join(tmpDir, 'overlay', 'current');
+    await buildOverlayBundle('console.log("legacy");', overlayCurrentDir);
+    // Re-sign with the pre-1.0.10 scheme: raw DER over the bundle only.
+    const bundleData = fs.readFileSync(path.join(overlayCurrentDir, 'bundle.js'));
+    const sign = crypto.createSign('SHA256');
+    sign.update(bundleData);
+    fs.writeFileSync(path.join(overlayCurrentDir, 'bundle.js.sig'), sign.sign({ key: keypair.privateKey, dsaEncoding: 'der' }));
+
+    const result = await runBinary(binPath);
+    assert.ok(result.stdout.includes('embedded-ok'), `Expected embedded fallback, got: ${result.stdout}`);
+    assert.ok(result.stderr.includes('unsupported signature format'), `Expected format error, got: ${result.stderr}`);
+  });
+
+  it('should reject tampered compat string in signature file', async (ctx) => {
+    if (skipBinaryTests) return ctx.skip('No overlay-enabled cached binary available');
+    const overlayCurrentDir = path.join(tmpDir, 'overlay', 'current');
+    // Signed for goat-v0, then header rewritten to claim goat-v1 (same length).
+    await buildOverlayBundle('console.log("tampered-compat");', overlayCurrentDir, 'goat-v0');
+    const sigPath = path.join(overlayCurrentDir, 'bundle.js.sig');
+    const sig = fs.readFileSync(sigPath);
+    sig.write(COMPAT, 12, 'ascii');
+    fs.writeFileSync(sigPath, sig);
+
+    const result = await runBinary(binPath);
+    assert.ok(result.stdout.includes('embedded-ok'), `Expected embedded fallback, got: ${result.stdout}`);
+    assert.ok(result.stderr.includes('signature verification failed'), `Expected signature error, got: ${result.stderr}`);
+  });
+
+  it('should reject all overlays when binary has no compat string', async (ctx) => {
+    if (skipBinaryTests) return ctx.skip('No overlay-enabled cached binary available');
+    // The CLI refuses to build this; go through the API to leave the slot unmodified.
+    const { NodeJsBuilder } = require('../src/NodeBuilder');
+    const pubFile = path.join(tmpDir, 'signing.pub');
+    fs.writeFileSync(pubFile, keypair.publicKey);
+    const appFile = createApp(tmpDir, 'embedded.js', 'console.log("embedded-ok");');
+    const builder = new NodeJsBuilder(undefined, DEFAULT_NODE_VERSION, appFile, undefined, undefined, DEFAULT_BUILD_VERSION, undefined, pubFile, true);
+    const noCompatBin = path.join(tmpDir, 'no-compat');
+    await builder.buildFromCached(PLATFORM, ARCH, noCompatBin, true, DEFAULT_SIZE);
+    fs.chmodSync(noCompatBin, 0o755);
+    if (process.platform === 'darwin') {
+      try { await execFileAsync('codesign', ['--force', '--sign', '-', noCompatBin]); } catch {}
+    }
+    await buildOverlayBundle('console.log("should-not-run");', path.join(tmpDir, 'overlay', 'current'));
+
+    const result = await runBinary(noCompatBin);
+    assert.ok(result.stdout.includes('embedded-ok'), `Expected embedded fallback, got: ${result.stdout}`);
+    assert.ok(result.stderr.includes('not built with --compat-string'), `Expected compat slot error, got: ${result.stderr}`);
+  });
+
   it('should reject overlay bundle signed by a different key', async (ctx) => {
     if (skipBinaryTests) return ctx.skip('No overlay-enabled cached binary available');
     const overlayCurrentDir = path.join(tmpDir, 'overlay', 'current');
@@ -337,6 +446,7 @@ describe('Overlay Integration: Full Binary Flow', async () => {
       '--overlay',
       `--app=${appFile}`,
       `--signing-key=${rogueKeyFile}`,
+      `--compat-string=${COMPAT}`,
       `--output=${overlayCurrentDir}`,
     ]);
 
@@ -360,6 +470,16 @@ describe('Overlay Integration: Encryption key placeholder', () => {
     const builder = new NodeJsBuilder(undefined, '22.22.0', __filename, undefined, undefined, undefined, undefined, undefined, true);
     const placeholder = builder.getEncryptionKeyPlaceholderContent();
     assert.ok(placeholder.includes('~E~n~c~K~e~y~P~'), 'sentinel not found in placeholder');
+    assert.equal(placeholder.length, 130, `expected 130 bytes (backtick + 128B + backtick), got ${placeholder.length}`);
+  });
+});
+
+describe('Overlay Integration: Compat string placeholder', () => {
+  it('getCompatStringPlaceholderContent produces correct sentinel and size', () => {
+    const { NodeJsBuilder } = require('../src/NodeBuilder');
+    const builder = new NodeJsBuilder(undefined, '22.22.0', __filename, undefined, undefined, undefined, undefined, undefined, true);
+    const placeholder = builder.getCompatStringPlaceholderContent();
+    assert.ok(placeholder.includes('~C~o~m~p~a~t~P~'), 'sentinel not found in placeholder');
     assert.equal(placeholder.length, 130, `expected 130 bytes (backtick + 128B + backtick), got ${placeholder.length}`);
   });
 });
@@ -489,6 +609,43 @@ describe('Overlay Integration: CLI validation', () => {
     );
   });
 
+  it('should reject --build --enable-overlay without --compat-string', async () => {
+    const appFile = createApp(tmpDir, 'app.js', 'console.log("x");');
+    const result = await runCli([
+      '--build',
+      `--node=${DEFAULT_NODE_VERSION}`,
+      `--app=${appFile}`,
+      '--enable-overlay',
+      `--signing-public-key=${keyFile}`,
+    ]);
+    assert.notEqual(result.code, 0);
+    assert.match(result.stdout, /requires --compat-string/);
+  });
+
+  it('should reject --compat-string without --enable-overlay', async () => {
+    const appFile = createApp(tmpDir, 'app.js', 'console.log("x");');
+    const result = await runCli([
+      '--build',
+      `--node=${DEFAULT_NODE_VERSION}`,
+      `--app=${appFile}`,
+      `--compat-string=${COMPAT}`,
+    ]);
+    assert.notEqual(result.code, 0);
+    assert.match(result.stdout, /--compat-string requires --enable-overlay/);
+  });
+
+  it('should reject --compat-string on --ci', async () => {
+    const result = await runCli([
+      '--ci',
+      `--node=${DEFAULT_NODE_VERSION}`,
+      '--size=2MB',
+      '--enable-overlay',
+      `--compat-string=${COMPAT}`,
+    ]);
+    assert.notEqual(result.code, 0);
+    assert.match(result.stdout, /--compat-string is only supported with --build or --overlay/);
+  });
+
   it('should reject an RSA private key at --overlay time', async () => {
     const rsa = crypto.generateKeyPairSync('rsa', {
       modulusLength: 2048,
@@ -502,6 +659,7 @@ describe('Overlay Integration: CLI validation', () => {
       '--overlay',
       `--app=${appFile}`,
       `--signing-key=${badKeyFile}`,
+      `--compat-string=${COMPAT}`,
       `--output=${path.join(tmpDir, 'out')}`,
     ]);
     assert.notEqual(result.code, 0);
@@ -526,6 +684,7 @@ describe('Overlay Integration: CLI validation', () => {
       `--app=${appFile}`,
       '--enable-overlay',
       `--signing-public-key=${badKeyFile}`,
+      `--compat-string=${COMPAT}`,
       `--name=${path.join(tmpDir, 'bad-build')}`,
     ]);
     assert.notEqual(result.code, 0);
