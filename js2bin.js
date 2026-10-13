@@ -38,27 +38,25 @@ command-args: take the form of --name=value
   --gpg-key-path: (opt) Path to the armored public key to verify against (or set
                 JS2BIN_GPG_KEY_PATH). Defaults to the key committed at
                 keys/release-signing.asc. Only used with --require-signature.
-  --enable-overlay: (opt) Use an overlay-enabled cached binary (built via --ci --enable-overlay).
-                    Disabled by default.
+  --overlay-compat-string: (opt) Enable overlays and embed this opaque string
+                (1-64 printable ASCII) into the binary. Overlays with a different
+                --overlay-compat-string are ignored.
+                e.g. --overlay-compat-string=1.2.3
   --signing-public-key: Path to ECDSA P-256 public key PEM file to embed into
-                the binary. Required with --enable-overlay.
+                the binary. Required with --overlay-compat-string.
                 e.g. --signing-public-key=/path/to/overlay-signing.pub
   --encryption-key: (opt) Path to a file containing a 64-char hex AES-256 key to embed
                 into the binary for decrypting encrypted overlay bundles (bundle.js.enc).
-                Only valid with --build --enable-overlay.
+                Only valid with --build --overlay-compat-string.
                 e.g. --encryption-key=/path/to/overlay-encryption.key
-  --compat-string: Opaque string (1-64 printable ASCII) embedded into the binary.
-                Only overlays built with the identical --compat-string are loaded.
-                Required with --enable-overlay.
-                e.g. --compat-string=1.2.3
 
 --overlay: build a signed overlay bundle from a JS application
   --app:      Path to your (bundled) application
               e.g. --app=/path/to/app/index.js
   --signing-key: Path to ECDSA P-256 private key PEM file for signing
               e.g. --signing-key=/path/to/overlay-signing.key
-  --compat-string: Must equal the --compat-string of the target binary. Required.
-              e.g. --compat-string=1.2.3
+  --overlay-compat-string: Must equal the --overlay-compat-string of the target binary. Required.
+              e.g. --overlay-compat-string=1.2.3
   --output:   (opt) Output directory (default: ./overlay-bundle/)
               e.g. --output=/path/to/output
 
@@ -120,39 +118,36 @@ function parseArgs() {
   args.requireSignature = (args['require-signature'] === true);
   args.gpgSignatureUrl = (args['gpg-signature-url'] || process.env.JS2BIN_GPG_SIGNATURE_URL || undefined);
   args.gpgKeyPath = (args['gpg-key-path'] || process.env.JS2BIN_GPG_KEY_PATH || undefined);
-  args.enableOverlay = (args['enable-overlay'] === true);
+  args.compatString = (args['overlay-compat-string'] || undefined);
+  if (args.compatString !== undefined && (typeof args.compatString !== 'string' || !COMPAT_STRING_RE.test(args.compatString))) {
+    return usage('--overlay-compat-string must be 1-64 printable ASCII characters, not starting with `~');
+  }
+  if (args.compatString && args.ci) {
+    return usage('--overlay-compat-string is only supported with --build or --overlay');
+  }
+  if (args.build && args['enable-overlay']) {
+    return usage('--build --enable-overlay was replaced by --overlay-compat-string');
+  }
+  if (args.overlay && !args.compatString) {
+    return usage('--overlay requires --overlay-compat-string');
+  }
+  args.enableOverlay = args.ci ? (args['enable-overlay'] === true) : !!(args.build && args.compatString);
   args.signingPublicKey = (args['signing-public-key'] || undefined);
   args.encryptionKey = (args['encryption-key'] || undefined);
-  if (args.signingPublicKey && !args.enableOverlay) {
-    return usage('--signing-public-key requires --enable-overlay');
-  }
   if (args.signingPublicKey && !args.build) {
     return usage('--signing-public-key is only supported with --build (key is embedded at build time)');
   }
-  if (args.build && args.enableOverlay && !args.signingPublicKey) {
-    return usage('--build --enable-overlay requires --signing-public-key');
+  if (args.signingPublicKey && !args.enableOverlay) {
+    return usage('--signing-public-key requires --overlay-compat-string');
   }
-  args.compatString = (args['compat-string'] || undefined);
-  if (args.compatString !== undefined && (typeof args.compatString !== 'string' || !COMPAT_STRING_RE.test(args.compatString))) {
-    return usage('--compat-string must be 1-64 printable ASCII characters, not starting with `~');
-  }
-  if (args.compatString && args.ci) {
-    return usage('--compat-string is only supported with --build or --overlay');
-  }
-  if (args.compatString && args.build && !args.enableOverlay) {
-    return usage('--compat-string requires --enable-overlay');
-  }
-  if (args.build && args.enableOverlay && !args.compatString) {
-    return usage('--build --enable-overlay requires --compat-string');
-  }
-  if (args.overlay && !args.compatString) {
-    return usage('--overlay requires --compat-string');
-  }
-  if (args.encryptionKey && !args.enableOverlay) {
-    return usage('--encryption-key requires --enable-overlay');
+  if (args.enableOverlay && args.build && !args.signingPublicKey) {
+    return usage('--overlay-compat-string requires --signing-public-key');
   }
   if (args.encryptionKey && !args.build) {
     return usage('--encryption-key is only supported with --build (key is embedded at build time)');
+  }
+  if (args.encryptionKey && !args.enableOverlay) {
+    return usage('--encryption-key requires --overlay-compat-string');
   }
   return args;
 }

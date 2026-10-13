@@ -284,7 +284,7 @@ class NodeJsBuilder {
   }
 
   // 128 B region reserved for the overlay compat string (<= 64 printable ASCII).
-  // Written at --ci time and overwritten at --build time from --compat-string.
+  // Written at --ci time and overwritten at --build time from --overlay-compat-string.
   // Same sentinel scheme as the encryption key placeholder.
   getCompatStringPlaceholderContent() {
     const COMPAT_PLACEHOLDER_SIZE = 128;

@@ -11,7 +11,7 @@ class OverlayBuilder {
    * @param {object} opts
    * @param {string} opts.app - Path to the JS app file to bundle
    * @param {string} opts.signingKey - Path to ECDSA P-256 private key PEM file
-   * @param {string} opts.compatString - Must equal the binary's --compat-string for the overlay to load
+   * @param {string} opts.compatString - Must equal the binary's --overlay-compat-string for the overlay to load
    * @param {string} [opts.output] - Output directory (default: ./overlay-bundle/)
    */
   constructor(opts) {

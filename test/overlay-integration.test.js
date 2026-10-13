@@ -81,7 +81,7 @@ describe('Overlay Integration: Bundle CLI (--overlay)', () => {
       '--overlay',
       `--app=${appFile}`,
       `--signing-key=${keyFile}`,
-      `--compat-string=${COMPAT}`,
+      `--overlay-compat-string=${COMPAT}`,
       `--output=${outputDir}`,
     ]);
 
@@ -96,7 +96,7 @@ describe('Overlay Integration: Bundle CLI (--overlay)', () => {
       '--overlay',
       `--app=${appFile}`,
       `--signing-key=${keyFile}`,
-      `--compat-string=${COMPAT}`,
+      `--overlay-compat-string=${COMPAT}`,
       `--output=${outputDir}`,
     ]);
 
@@ -111,7 +111,7 @@ describe('Overlay Integration: Bundle CLI (--overlay)', () => {
       '--overlay',
       `--app=${appFile}`,
       `--signing-key=${keyFile}`,
-      `--compat-string=${COMPAT}`,
+      `--overlay-compat-string=${COMPAT}`,
       `--output=${outputDir}`,
     ]);
 
@@ -125,36 +125,36 @@ describe('Overlay Integration: Bundle CLI (--overlay)', () => {
     assert.ok(verify.verify({ key: keypair.publicKey, dsaEncoding: 'der' }, sigData.subarray(header.length)));
   });
 
-  it('should fail without --compat-string', async () => {
+  it('should fail without --overlay-compat-string', async () => {
     const result = await runCli([
       '--overlay',
       `--app=${appFile}`,
       `--signing-key=${keyFile}`,
     ]);
     assert.notEqual(result.code, 0);
-    assert.match(result.stdout, /--overlay requires --compat-string/);
+    assert.match(result.stdout, /--overlay requires --overlay-compat-string/);
   });
 
   for (const bad of ['x'.repeat(65), 'goat v1', 'goat-\x01', 'goat-🐐', '`~goat']) {
-    it(`should reject invalid --compat-string ${JSON.stringify(bad)}`, async () => {
+    it(`should reject invalid --overlay-compat-string ${JSON.stringify(bad)}`, async () => {
       const result = await runCli([
         '--overlay',
         `--app=${appFile}`,
         `--signing-key=${keyFile}`,
-        `--compat-string=${bad}`,
+        `--overlay-compat-string=${bad}`,
       ]);
       assert.notEqual(result.code, 0);
-      assert.match(result.stdout, /--compat-string must be 1-64 printable ASCII/);
+      assert.match(result.stdout, /--overlay-compat-string must be 1-64 printable ASCII/);
     });
   }
 
-  it('should keep "=" inside --compat-string value', async () => {
+  it('should keep "=" inside --overlay-compat-string value', async () => {
     const outputDir = path.join(tmpDir, 'out');
     const result = await runCli([
       '--overlay',
       `--app=${appFile}`,
       `--signing-key=${keyFile}`,
-      '--compat-string=goat=v1',
+      '--overlay-compat-string=goat=v1',
       `--output=${outputDir}`,
     ]);
     assert.equal(result.code, 0, `CLI failed: ${result.stdout}${result.stderr}`);
@@ -184,7 +184,7 @@ describe('Overlay Integration: Bundle CLI (--overlay)', () => {
       '--overlay',
       '--app=/tmp/does-not-exist-overlay-test.js',
       `--signing-key=${keyFile}`,
-      `--compat-string=${COMPAT}`,
+      `--overlay-compat-string=${COMPAT}`,
     ]);
     assert.notEqual(result.code, 0);
   });
@@ -193,7 +193,7 @@ describe('Overlay Integration: Bundle CLI (--overlay)', () => {
 // ---------------------------------------------------------------------------
 // Tier 2: Full Binary Overlay Flow
 //
-// Tries to build an overlay-enabled binary via --build --enable-overlay --cache.
+// Tries to build an overlay-enabled binary via --build --overlay-compat-string --cache.
 // If the overlay cached binary isn't available, falls back to JS2BIN_OVERLAY_BINARY
 // env var. Skips if neither works.
 // ---------------------------------------------------------------------------
@@ -230,9 +230,8 @@ describe('Overlay Integration: Full Binary Flow', async () => {
       `--node=${DEFAULT_NODE_VERSION}`,
       `--build-version=${DEFAULT_BUILD_VERSION}`,
       `--size=${DEFAULT_SIZE}`,
-      '--enable-overlay',
       `--signing-public-key=${buildKeyFile}`,
-      `--compat-string=${COMPAT}`,
+      `--overlay-compat-string=${COMPAT}`,
       '--cache',
       `--name=${binName}`,
       `--platform=${PLATFORM}`,
@@ -289,7 +288,7 @@ describe('Overlay Integration: Full Binary Flow', async () => {
       '--overlay',
       `--app=${appFile}`,
       `--signing-key=${keyFile}`,
-      `--compat-string=${compat}`,
+      `--overlay-compat-string=${compat}`,
       `--output=${outputDir}`,
     ]);
     assert.equal(result.code, 0, `Overlay bundle build failed: ${result.stderr}`);
@@ -432,7 +431,7 @@ describe('Overlay Integration: Full Binary Flow', async () => {
 
     const result = await runBinary(noCompatBin);
     assert.ok(result.stdout.includes('embedded-ok'), `Expected embedded fallback, got: ${result.stdout}`);
-    assert.ok(result.stderr.includes('not built with --compat-string'), `Expected compat slot error, got: ${result.stderr}`);
+    assert.ok(result.stderr.includes('not built with --overlay-compat-string'), `Expected compat slot error, got: ${result.stderr}`);
   });
 
   it('should reject overlay bundle signed by a different key', async (ctx) => {
@@ -446,7 +445,7 @@ describe('Overlay Integration: Full Binary Flow', async () => {
       '--overlay',
       `--app=${appFile}`,
       `--signing-key=${rogueKeyFile}`,
-      `--compat-string=${COMPAT}`,
+      `--overlay-compat-string=${COMPAT}`,
       `--output=${overlayCurrentDir}`,
     ]);
 
@@ -495,7 +494,7 @@ describe('Overlay Integration: Encryption CLI validation', () => {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
-  it('should reject --encryption-key without --enable-overlay', async () => {
+  it('should reject --encryption-key without --overlay-compat-string', async () => {
     const encKeyFile = path.join(tmpDir, 'enc.key');
     fs.writeFileSync(encKeyFile, generateEncryptionKey());
     const appFile = path.join(tmpDir, 'app.js');
@@ -508,8 +507,8 @@ describe('Overlay Integration: Encryption CLI validation', () => {
     ]);
     assert.notEqual(result.code, 0);
     assert.ok(
-      /requires --enable-overlay/.test(result.stdout + result.stderr),
-      `Expected error about --enable-overlay, got: ${result.stdout}${result.stderr}`
+      /requires --overlay-compat-string/.test(result.stdout + result.stderr),
+      `Expected error about --overlay-compat-string, got: ${result.stdout}${result.stderr}`
     );
   });
 
@@ -594,22 +593,31 @@ describe('Overlay Integration: CLI validation', () => {
     );
   });
 
-  it('should reject --build --enable-overlay without --signing-public-key', async () => {
+  it('should reject --overlay-compat-string without --signing-public-key', async () => {
     const appFile = createApp(tmpDir, 'app.js', 'console.log("x");');
     const result = await runCli([
       '--build',
       `--node=${DEFAULT_NODE_VERSION}`,
       `--app=${appFile}`,
-      '--enable-overlay',
+      `--overlay-compat-string=${COMPAT}`,
     ]);
     assert.notEqual(result.code, 0);
-    assert.ok(
-      /requires --signing-public-key/.test(result.stdout + result.stderr),
-      `Expected CLI error about missing key, got: ${result.stdout}${result.stderr}`
-    );
+    assert.match(result.stdout, /--overlay-compat-string requires --signing-public-key/);
   });
 
-  it('should reject --build --enable-overlay without --compat-string', async () => {
+  it('should reject --signing-public-key without --overlay-compat-string', async () => {
+    const appFile = createApp(tmpDir, 'app.js', 'console.log("x");');
+    const result = await runCli([
+      '--build',
+      `--node=${DEFAULT_NODE_VERSION}`,
+      `--app=${appFile}`,
+      `--signing-public-key=${keyFile}`,
+    ]);
+    assert.notEqual(result.code, 0);
+    assert.match(result.stdout, /--signing-public-key requires --overlay-compat-string/);
+  });
+
+  it('should reject --build --enable-overlay', async () => {
     const appFile = createApp(tmpDir, 'app.js', 'console.log("x");');
     const result = await runCli([
       '--build',
@@ -617,33 +625,22 @@ describe('Overlay Integration: CLI validation', () => {
       `--app=${appFile}`,
       '--enable-overlay',
       `--signing-public-key=${keyFile}`,
+      `--overlay-compat-string=${COMPAT}`,
     ]);
     assert.notEqual(result.code, 0);
-    assert.match(result.stdout, /requires --compat-string/);
+    assert.match(result.stdout, /--enable-overlay was replaced by --overlay-compat-string/);
   });
 
-  it('should reject --compat-string without --enable-overlay', async () => {
-    const appFile = createApp(tmpDir, 'app.js', 'console.log("x");');
-    const result = await runCli([
-      '--build',
-      `--node=${DEFAULT_NODE_VERSION}`,
-      `--app=${appFile}`,
-      `--compat-string=${COMPAT}`,
-    ]);
-    assert.notEqual(result.code, 0);
-    assert.match(result.stdout, /--compat-string requires --enable-overlay/);
-  });
-
-  it('should reject --compat-string on --ci', async () => {
+  it('should reject --overlay-compat-string on --ci', async () => {
     const result = await runCli([
       '--ci',
       `--node=${DEFAULT_NODE_VERSION}`,
       '--size=2MB',
       '--enable-overlay',
-      `--compat-string=${COMPAT}`,
+      `--overlay-compat-string=${COMPAT}`,
     ]);
     assert.notEqual(result.code, 0);
-    assert.match(result.stdout, /--compat-string is only supported with --build or --overlay/);
+    assert.match(result.stdout, /--overlay-compat-string is only supported with --build or --overlay/);
   });
 
   it('should reject an RSA private key at --overlay time', async () => {
@@ -659,7 +656,7 @@ describe('Overlay Integration: CLI validation', () => {
       '--overlay',
       `--app=${appFile}`,
       `--signing-key=${badKeyFile}`,
-      `--compat-string=${COMPAT}`,
+      `--overlay-compat-string=${COMPAT}`,
       `--output=${path.join(tmpDir, 'out')}`,
     ]);
     assert.notEqual(result.code, 0);
@@ -682,9 +679,8 @@ describe('Overlay Integration: CLI validation', () => {
       '--build',
       `--node=${DEFAULT_NODE_VERSION}`,
       `--app=${appFile}`,
-      '--enable-overlay',
       `--signing-public-key=${badKeyFile}`,
-      `--compat-string=${COMPAT}`,
+      `--overlay-compat-string=${COMPAT}`,
       `--name=${path.join(tmpDir, 'bad-build')}`,
     ]);
     assert.notEqual(result.code, 0);

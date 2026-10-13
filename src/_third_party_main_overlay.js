@@ -62,7 +62,7 @@ function extractEmbeddedEncryptionKey() {
 const EMBEDDED_ENCRYPTION_KEY = extractEmbeddedEncryptionKey();
 
 // Compat string slot (lib/_js2bin_compat_string.js), stamped at --build time via
-// --compat-string. An overlay loads only if its signed compat string is identical.
+// --overlay-compat-string. An overlay loads only if its signed compat string is identical.
 function extractEmbeddedCompatString() {
   let raw;
   try {
@@ -154,7 +154,7 @@ function tryLoadOverlayBundle(execDir) {
   }
 
   if (!EMBEDDED_COMPAT_STRING) {
-    process.stderr.write('[js2bin] overlay: no embedded compat string — binary was not built with --compat-string. Ignoring overlay bundle.\n');
+    process.stderr.write('[js2bin] overlay: no embedded compat string — binary was not built with --overlay-compat-string. Ignoring overlay bundle.\n');
     return null;
   }
 
