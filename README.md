@@ -100,8 +100,9 @@ js2bin --build --cache --node=10.13.0 --app=/path/to/my/app.js --name=CoolAppNam
   --upload: (opt) whether to upload node build to github releases
   --clean:  (opt) whether to clean up after the build
   --enable-overlay: (opt) Compile the overlay runtime into the binary. The resulting
-                    binary has no embedded signing key — consumers stamp their own
-                    in at --build time via --signing-public-key.
+                    binary has no embedded signing key or compat string — consumers
+                    stamp their own in at --build time via --signing-public-key and
+                    --overlay-compat-string.
 
 
 ```
@@ -134,10 +135,10 @@ When a binary is built with `--overlay-compat-string`, it checks for a signed ov
 
 ## Building an overlay-enabled binary
 
-Overlay-enabled binaries must be built from source because the overlay runtime needs to be compiled into Node. The signing public key is embedded at **`--build`** time, so the placeholder binaries published by this project (and any cached via `--ci`) carry no baked-in key — every consumer stamps in their own:
+Overlay-enabled binaries must be built from source because the overlay runtime needs to be compiled into Node. The signing public key and compat string are embedded at **`--build`** time, so the placeholder binaries published by this project (and any cached via `--ci`) carry neither — every consumer stamps in their own:
 
 ```bash
-# 1. Build Node from source with overlay support (slow, one-time). No key yet.
+# 1. Build Node from source with overlay support (slow, one-time). No key or compat string yet.
 js2bin --ci --node=22.22.0 --size=2MB --cache --enable-overlay
 
 # 2. Embed your app AND your signing public key into the overlay-enabled cached

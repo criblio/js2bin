@@ -75,8 +75,8 @@ command-args: take the form of --name=value
   --pointer-compress:  (opt) whether to enable pointer compression
   --enable-overlay: (opt) Compile the overlay runtime into the binary. Without this,
                     no overlay code exists in the binary. The resulting binary
-                    has no embedded signing key — use --build --signing-public-key
-                    to stamp one in.
+                    has no embedded signing key or compat string — use --build
+                    --signing-public-key --overlay-compat-string to stamp them in.
 
 --help: print this help message
 `);
