@@ -219,12 +219,25 @@ mod.id = '.'; // main module
 mod.filename = filename; // dirname of this is used by require
 process.mainModule = mod; // main module
 
+// Lets the app tell whether it runs the overlay or the embedded JS. A process
+// property rather than an env var: child processes inherit env, but each one
+// re-runs this loader and gets its own value.
+function setOverlayLoaded(overlayLoaded) {
+  Object.defineProperty(process, 'js2bin', {
+    value: Object.freeze({ overlayLoaded }),
+    enumerable: false
+  });
+}
+
 function decompressActiveSource() {
   try {
-    return brotliDecompressSync(Buffer.from(activeSource, 'base64'), { chunkSize: 128 * 1024 * 1024 }).toString();
+    const source = brotliDecompressSync(Buffer.from(activeSource, 'base64'), { chunkSize: 128 * 1024 * 1024 }).toString();
+    setOverlayLoaded(activeSource !== embeddedSource);
+    return source;
   } catch (err) {
     if (activeSource !== embeddedSource) {
       process.stderr.write(`[js2bin] overlay: failed to decompress overlay bundle: ${err.message}. Falling back to embedded JS.\n`);
+      setOverlayLoaded(false);
       return brotliDecompressSync(Buffer.from(embeddedSource, 'base64'), { chunkSize: 128 * 1024 * 1024 }).toString();
     }
     throw err;

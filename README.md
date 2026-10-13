@@ -176,6 +176,10 @@ The binary looks for bundles at `<binary-dir>/overlay/current/` by default. Over
 
 Empty `bundle.js` or `bundle.js.sig` files are treated as if absent — the binary silently falls back to the embedded app. This lets you "disable" an overlay by truncating the files without producing log noise.
 
+## Detecting the active overlay at runtime
+
+In an overlay-enabled binary, `process.js2bin.overlayLoaded` is `true` when the running JS came from the overlay bundle and `false` when the binary fell back to the embedded app (no bundle, rejected bundle, or a bundle that failed to decompress). Binaries built without overlay support do not define `process.js2bin`.
+
 ## Signature verification
 
 The binary verifies overlay bundles using ECDSA P-256 (SHA-256) against the public key stamped into the binary at `--build` time via `--signing-public-key`. That embedded key is the only accepted verifier — there is no on-disk key loading.

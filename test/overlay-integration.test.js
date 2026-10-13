@@ -10,6 +10,8 @@ const { promisify } = require('util');
 
 const execFileAsync = promisify(execFile);
 
+const { compatHeader } = require('../src/_js2bin_sig_format');
+
 const CLI_PATH = path.join(__dirname, '..', 'js2bin.js');
 const COMPAT = 'goat-v1';
 
@@ -215,7 +217,7 @@ describe('Overlay Integration: Full Binary Flow', async () => {
 
   before(async () => {
     setupDir = fs.mkdtempSync(path.join(os.tmpdir(), 'overlay-setup-'));
-    const embeddedApp = createApp(setupDir, 'embedded.js', 'console.log("embedded-ok");');
+    const embeddedApp = createApp(setupDir, 'embedded.js', 'console.log("embedded-ok overlayLoaded=" + process.js2bin.overlayLoaded);');
     const binName = path.join(setupDir, 'overlay-integ-test');
 
     // Single keypair: the public half is embedded at --build time (the only
@@ -300,16 +302,18 @@ describe('Overlay Integration: Full Binary Flow', async () => {
     const result = await runBinary(binPath);
     assert.equal(result.code, 0, `Binary failed: ${result.stderr}`);
     assert.ok(result.stdout.includes('embedded-ok'), `Expected "embedded-ok", got: ${result.stdout}`);
+    assert.ok(result.stdout.includes('overlayLoaded=false'), `Expected overlayLoaded=false, got: ${result.stdout}`);
   });
 
   it('should load overlay bundle that overrides embedded app', async (ctx) => {
     if (skipBinaryTests) return ctx.skip('No overlay-enabled cached binary available');
     const overlayCurrentDir = path.join(tmpDir, 'overlay', 'current');
-    await buildOverlayBundle('console.log("v2-ok");', overlayCurrentDir);
+    await buildOverlayBundle('console.log("v2-ok overlayLoaded=" + process.js2bin.overlayLoaded);', overlayCurrentDir);
 
     const result = await runBinary(binPath);
     assert.equal(result.code, 0, `Binary failed: ${result.stderr}`);
     assert.ok(result.stdout.includes('v2-ok'), `Expected overlay output "v2-ok", got: ${result.stdout}`);
+    assert.ok(result.stdout.includes('overlayLoaded=true'), `Expected overlayLoaded=true, got: ${result.stdout}`);
   });
 
   it('should load overlay bundle via JS2BIN_OVERLAY_DIR env var', async (ctx) => {
@@ -379,8 +383,27 @@ describe('Overlay Integration: Full Binary Flow', async () => {
 
     const result = await runBinary(binPath);
     assert.ok(result.stdout.includes('embedded-ok'), `Expected embedded fallback, got: ${result.stdout}`);
+    assert.ok(result.stdout.includes('overlayLoaded=false'), `Expected overlayLoaded=false, got: ${result.stdout}`);
     assert.ok(result.stderr.includes('overlay="goat-v0"') && result.stderr.includes(`binary="${COMPAT}"`),
       `Expected both compat strings in stderr, got: ${result.stderr}`);
+  });
+
+  it('should report overlayLoaded=false when a signed overlay fails to decompress', async (ctx) => {
+    if (skipBinaryTests) return ctx.skip('No overlay-enabled cached binary available');
+    const overlayCurrentDir = path.join(tmpDir, 'overlay', 'current');
+    await buildOverlayBundle('console.log("not-brotli");', overlayCurrentDir);
+    // Validly signed, but not Brotli: verification passes, decompression fails.
+    const bundleData = Buffer.from(Buffer.from('not brotli').toString('base64'));
+    const header = compatHeader(COMPAT);
+    const sign = crypto.createSign('SHA256');
+    sign.update(Buffer.concat([header, bundleData]));
+    fs.writeFileSync(path.join(overlayCurrentDir, 'bundle.js'), bundleData);
+    fs.writeFileSync(path.join(overlayCurrentDir, 'bundle.js.sig'),
+      Buffer.concat([header, sign.sign({ key: keypair.privateKey, dsaEncoding: 'der' })]));
+
+    const result = await runBinary(binPath);
+    assert.ok(result.stderr.includes('failed to decompress overlay bundle'), `Expected decompress error, got: ${result.stderr}`);
+    assert.ok(result.stdout.includes('embedded-ok overlayLoaded=false'), `Expected embedded fallback, got: ${result.stdout}`);
   });
 
   it('should reject legacy raw-DER signature', async (ctx) => {
