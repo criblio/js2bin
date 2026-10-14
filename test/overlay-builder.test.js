@@ -175,8 +175,15 @@ describe('OverlayBuilder', () => {
     it('rejects compat length beyond file or over 64', () => {
       const truncated = compatHeader('goat-v1').subarray(0, 14);
       assert.equal(parseSigFile(truncated), 'invalid signature compat string length');
-      const oversized = Buffer.concat([compatHeader('x'.repeat(65)), Buffer.alloc(70)]);
+      const len = Buffer.alloc(2);
+      len.writeUInt16BE(65);
+      const oversized = Buffer.concat([Buffer.from('J2BCOMPAT1'), len, Buffer.alloc(65 + 70, 'x')]);
       assert.equal(parseSigFile(oversized), 'invalid signature compat string length');
+    });
+
+    it('compatHeader rejects invalid compat strings', () => {
+      assert.throws(() => compatHeader('x'.repeat(65)), /compat string/);
+      assert.throws(() => compatHeader(''), /compat string/);
     });
   });
 });

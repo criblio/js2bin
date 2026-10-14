@@ -8,6 +8,7 @@ const { promisify } = require('util');
 const fs = require('fs');
 const os = require('os');
 const tar = require('tar-fs');
+const { assertCompatString } = require('./_js2bin_sig_format');
 const execFileAsync = promisify(execFile);
 const pkg = require('../package.json');
 
@@ -100,6 +101,7 @@ class NodeJsBuilder {
     this.signingPublicKey = signingPublicKey || '';
     this.enableOverlay = !!enableOverlay;
     this.encryptionKey = encryptionKey || '';
+    if (compatString) assertCompatString(compatString);
     this.compatString = compatString || '';
   }
 

@@ -124,30 +124,8 @@ function tryLoadOverlayBundle(execDir) {
   }
   if (sigData.length === 0) return null;
 
-  let bundleData;
-  try {
-    bundleData = fs.readFileSync(bundlePath);
-  } catch (err) {
-    if (err.code === 'ENOENT') return null;
-    process.stderr.write(`[js2bin] overlay: failed to read bundle file: ${err.message}\n`);
-    return null;
-  }
-  if (bundleData.length === 0) return null;
-
-  // Decrypt if the bundle is encrypted.
-  if (isEncrypted) {
-    if (!EMBEDDED_ENCRYPTION_KEY) {
-      process.stderr.write('[js2bin] overlay: bundle.js.enc found but no encryption key embedded — binary was not built with --encryption-key. Falling back to embedded JS.\n');
-      return null;
-    }
-    try {
-      bundleData = decryptBundle(bundleData, EMBEDDED_ENCRYPTION_KEY);
-    } catch (err) {
-      process.stderr.write(`[js2bin] overlay: failed to decrypt bundle.js.enc: ${err.message}. Falling back to embedded JS.\n`);
-      return null;
-    }
-  }
-
+  // Everything up to the signature check needs only the sig, so a stale
+  // overlay is rejected before the bundle is read or decrypted.
   if (!EMBEDDED_SIGNING_PUBLIC_KEY) {
     process.stderr.write('[js2bin] overlay: no embedded signing key — binary was not built with --signing-public-key. Ignoring overlay bundle.\n');
     return null;
@@ -170,6 +148,30 @@ function tryLoadOverlayBundle(execDir) {
   if (sig.compatString !== EMBEDDED_COMPAT_STRING) {
     process.stderr.write(`[js2bin] overlay: compat string mismatch (overlay=${JSON.stringify(sig.compatString)}, binary=${JSON.stringify(EMBEDDED_COMPAT_STRING)}). Falling back to embedded JS.\n`);
     return null;
+  }
+
+  let bundleData;
+  try {
+    bundleData = fs.readFileSync(bundlePath);
+  } catch (err) {
+    if (err.code === 'ENOENT') return null;
+    process.stderr.write(`[js2bin] overlay: failed to read bundle file: ${err.message}\n`);
+    return null;
+  }
+  if (bundleData.length === 0) return null;
+
+  // Decrypt if the bundle is encrypted.
+  if (isEncrypted) {
+    if (!EMBEDDED_ENCRYPTION_KEY) {
+      process.stderr.write('[js2bin] overlay: bundle.js.enc found but no encryption key embedded — binary was not built with --encryption-key. Falling back to embedded JS.\n');
+      return null;
+    }
+    try {
+      bundleData = decryptBundle(bundleData, EMBEDDED_ENCRYPTION_KEY);
+    } catch (err) {
+      process.stderr.write(`[js2bin] overlay: failed to decrypt bundle.js.enc: ${err.message}. Falling back to embedded JS.\n`);
+      return null;
+    }
   }
 
   if (!verifySignature(Buffer.concat([sig.header, bundleData]), sig.signature, EMBEDDED_SIGNING_PUBLIC_KEY)) {
@@ -203,10 +205,12 @@ const embeddedSource = parts[1];
 
 // Try overlay bundle
 let activeSource = embeddedSource;
+let overlayLoaded = false;
 try {
   const overlayBundle = tryLoadOverlayBundle(dirname(process.execPath));
   if (overlayBundle) {
     activeSource = overlayBundle;
+    overlayLoaded = true;
   }
 } catch (err) {
   process.stderr.write(`[js2bin] overlay: unexpected error during overlay load: ${err.message}. Falling back to embedded JS.\n`);
@@ -222,9 +226,9 @@ process.mainModule = mod; // main module
 // Lets the app tell whether it runs the overlay or the embedded JS. A process
 // property rather than an env var: child processes inherit env, but each one
 // re-runs this loader and gets its own value.
-function setOverlayLoaded(overlayLoaded) {
+function setOverlayLoaded(loaded) {
   Object.defineProperty(process, 'js2bin', {
-    value: Object.freeze({ overlayLoaded }),
+    value: Object.freeze({ overlayLoaded: loaded }),
     enumerable: false
   });
 }
@@ -232,10 +236,10 @@ function setOverlayLoaded(overlayLoaded) {
 function decompressActiveSource() {
   try {
     const source = brotliDecompressSync(Buffer.from(activeSource, 'base64'), { chunkSize: 128 * 1024 * 1024 }).toString();
-    setOverlayLoaded(activeSource !== embeddedSource);
+    setOverlayLoaded(overlayLoaded);
     return source;
   } catch (err) {
-    if (activeSource !== embeddedSource) {
+    if (overlayLoaded) {
       process.stderr.write(`[js2bin] overlay: failed to decompress overlay bundle: ${err.message}. Falling back to embedded JS.\n`);
       setOverlayLoaded(false);
       return brotliDecompressSync(Buffer.from(embeddedSource, 'base64'), { chunkSize: 128 * 1024 * 1024 }).toString();

@@ -15,8 +15,15 @@ const SIG_MAGIC = Buffer.from('J2BCOMPAT1', 'ascii');
 const COMPAT_STRING_RE = /^(?!`~)[\x21-\x7e]{1,64}$/;
 const MAX_COMPAT_LEN = 64;
 
+function assertCompatString(compatString) {
+  if (typeof compatString !== 'string' || !COMPAT_STRING_RE.test(compatString)) {
+    throw new Error('compat string must be 1-64 printable ASCII characters, not starting with `~');
+  }
+}
+
 function compatHeader(compatString) {
-  const compat = Buffer.from(compatString, 'utf8');
+  assertCompatString(compatString);
+  const compat = Buffer.from(compatString, 'ascii');
   const len = Buffer.alloc(2);
   len.writeUInt16BE(compat.length);
   return Buffer.concat([SIG_MAGIC, len, compat]);
@@ -34,9 +41,9 @@ function parseSigFile(sigData) {
   }
   return {
     header: sigData.subarray(0, headerMin + compatLen),
-    compatString: sigData.subarray(headerMin, headerMin + compatLen).toString('utf8'),
+    compatString: sigData.subarray(headerMin, headerMin + compatLen).toString('ascii'),
     signature: sigData.subarray(headerMin + compatLen)
   };
 }
 
-module.exports = { COMPAT_STRING_RE, compatHeader, parseSigFile };
+module.exports = { COMPAT_STRING_RE, assertCompatString, compatHeader, parseSigFile };
