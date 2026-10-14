@@ -39,7 +39,7 @@ command-args: take the form of --name=value
                 JS2BIN_GPG_KEY_PATH). Defaults to the key committed at
                 keys/release-signing.asc. Only used with --require-signature.
   --overlay-compat-string: (opt) Enable overlays and embed this opaque string
-                (1-64 printable ASCII) into the binary. Overlays with a different
+                (1-64 printable ASCII, no spaces) into the binary. Overlays with a different
                 --overlay-compat-string are ignored.
                 e.g. --overlay-compat-string=1.2.3
   --signing-public-key: Path to ECDSA P-256 public key PEM file to embed into

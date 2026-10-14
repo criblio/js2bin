@@ -69,7 +69,7 @@ js2bin --build --cache --node=10.13.0 --app=/path/to/my/app.js --name=CoolAppNam
               e.g. --dir=/tmp/js2bin
   --cache     (opt) Cache any pre-built binaries used, to avoid redownload
   --overlay-compat-string: (opt) Enable overlays and embed this opaque string
-                (1-64 printable ASCII, e.g. 1.2.3) into the binary. Overlays with
+                (1-64 printable ASCII, no spaces, e.g. 1.2.3) into the binary. Overlays with
                 a different --overlay-compat-string are ignored.
   --signing-public-key: Embed an ECDSA P-256 public key into the binary.
                 Required with --overlay-compat-string.
