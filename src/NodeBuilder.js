@@ -8,6 +8,7 @@ const { promisify } = require('util');
 const fs = require('fs');
 const os = require('os');
 const tar = require('tar-fs');
+const { assertCompatString } = require('./_js2bin_sig_format');
 const execFileAsync = promisify(execFile);
 const pkg = require('../package.json');
 
@@ -68,7 +69,7 @@ function parseSemverFromDescribe(desc) {
 }
 
 class NodeJsBuilder {
-  constructor(cwd, version, mainAppFile, appName, patchDir, buildVersion, commitHash, signingPublicKey, enableOverlay, encryptionKey) {
+  constructor(cwd, version, mainAppFile, appName, patchDir, buildVersion, commitHash, signingPublicKey, enableOverlay, encryptionKey, compatString) {
     this.version = version;
     this.appFile = resolve(mainAppFile);
     this.appName = appName;
@@ -100,6 +101,8 @@ class NodeJsBuilder {
     this.signingPublicKey = signingPublicKey || '';
     this.enableOverlay = !!enableOverlay;
     this.encryptionKey = encryptionKey || '';
+    if (compatString) assertCompatString(compatString);
+    this.compatString = compatString || '';
   }
 
   static platform() {
@@ -282,6 +285,15 @@ class NodeJsBuilder {
     return Buffer.from('`' + line.repeat(ENC_KEY_PLACEHOLDER_SIZE / line.length) + '`');
   }
 
+  // 128 B region reserved for the overlay compat string (<= 64 printable ASCII).
+  // Written at --ci time and overwritten at --build time from --overlay-compat-string.
+  // Same sentinel scheme as the encryption key placeholder.
+  getCompatStringPlaceholderContent() {
+    const COMPAT_PLACEHOLDER_SIZE = 128;
+    const line = '~C~o~m~p~a~t~P~\n';
+    return Buffer.from('`' + line.repeat(COMPAT_PLACEHOLDER_SIZE / line.length) + '`');
+  }
+
   getAppContentToBundle() {
     const mainAppFileCont = brotliCompressSync(
       fs.readFileSync(this.appFile),
@@ -298,10 +310,12 @@ class NodeJsBuilder {
   prepareNodeJsBuild() {
     // install _third_party_main.js — pick overlay or non-overlay version
     // install app_main.js
-    // install _js2bin_signing_key.js and _js2bin_encryption_key.js placeholders (when overlay is enabled)
+    // install _js2bin_signing_key.js, _js2bin_encryption_key.js and _js2bin_compat_string.js placeholders
+    // and the shared _js2bin_sig_format.js (when overlay is enabled)
     const appMainPath = this.nodePath('lib', '_js2bin_app_main.js');
     const keyPath = this.nodePath('lib', '_js2bin_signing_key.js');
     const encKeyPath = this.nodePath('lib', '_js2bin_encryption_key.js');
+    const compatPath = this.nodePath('lib', '_js2bin_compat_string.js');
     return Promise.resolve()
       .then(() => {
         const srcFile = this.enableOverlay ? '_third_party_main_overlay.js' : '_third_party_main.js';
@@ -322,6 +336,8 @@ class NodeJsBuilder {
         if (this.enableOverlay) {
           fs.writeFileSync(keyPath, this.getKeyPlaceholderContent());
           fs.writeFileSync(encKeyPath, this.getEncryptionKeyPlaceholderContent());
+          fs.writeFileSync(compatPath, this.getCompatStringPlaceholderContent());
+          fs.copyFileSync(join(this.srcDir, '_js2bin_sig_format.js'), this.nodePath('lib', '_js2bin_sig_format.js'));
         }
       });
   }
@@ -528,6 +544,20 @@ class NodeJsBuilder {
           execFileCont.fill(0, encKeyIdx, encKeyIdx + encKeyPlaceholder.length);
           execFileCont.write(encKeyHex, encKeyIdx);
           log(`embedded encryption key with ${encKeyHex.length} chars at offset ${encKeyIdx}`);
+        }
+
+        if (this.compatString) {
+          const compatPlaceholder = this.getCompatStringPlaceholderContent();
+          const compatIdx = execFileCont.indexOf(compatPlaceholder);
+          if (compatIdx < 0) {
+            throw new Error(
+              `Could not find compat-string placeholder in file=${cachedFile}. ` +
+              'The cached binary must be built with --ci --enable-overlay (with compat-string slot).'
+            );
+          }
+          execFileCont.fill(0, compatIdx, compatIdx + compatPlaceholder.length);
+          execFileCont.write(this.compatString, compatIdx, 'ascii');
+          log(`embedded compat string '${this.compatString}' at offset ${compatIdx}`);
         }
 
         log(`writing native binary ${outFile}`);

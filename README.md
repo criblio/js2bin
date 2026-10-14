@@ -68,10 +68,11 @@ js2bin --build --cache --node=10.13.0 --app=/path/to/my/app.js --name=CoolAppNam
   --dir:      (opt) Working directory, if not specified use cwd
               e.g. --dir=/tmp/js2bin
   --cache     (opt) Cache any pre-built binaries used, to avoid redownload
-  --enable-overlay: (opt) Use an overlay-enabled cached binary. Requires a cached
-                    binary built with --enable-overlay via --ci.
+  --overlay-compat-string: (opt) Enable overlays and embed this opaque string
+                (1-64 printable ASCII, no spaces, e.g. 1.2.3) into the binary. Overlays with
+                a different --overlay-compat-string are ignored.
   --signing-public-key: Embed an ECDSA P-256 public key into the binary.
-                Required with --enable-overlay.
+                Required with --overlay-compat-string.
   --require-signature: (opt) Verify the downloaded prebuilt binary against a
                 detached GPG signature before use. Fails hard if the signature,
                 public key, or gpg is missing or verification fails. Requires gpg
@@ -86,6 +87,7 @@ js2bin --build --cache --node=10.13.0 --app=/path/to/my/app.js --name=CoolAppNam
 --overlay: build a signed overlay bundle from a JS application
   --app:         Path to your (bundled) application
   --signing-key: Path to ECDSA P-256 private key PEM file for signing
+  --overlay-compat-string: Must equal the --overlay-compat-string of the target binary. Required.
   --output:      (opt) Output directory (default: ./overlay-bundle/)
 
 --ci: build NodeJS with preallocated space for embedding applications
@@ -98,8 +100,9 @@ js2bin --build --cache --node=10.13.0 --app=/path/to/my/app.js --name=CoolAppNam
   --upload: (opt) whether to upload node build to github releases
   --clean:  (opt) whether to clean up after the build
   --enable-overlay: (opt) Compile the overlay runtime into the binary. The resulting
-                    binary has no embedded signing key — consumers stamp their own
-                    in at --build time via --signing-public-key.
+                    binary has no embedded signing key or compat string — consumers
+                    stamp their own in at --build time via --signing-public-key and
+                    --overlay-compat-string.
 
 
 ```
@@ -128,20 +131,20 @@ js2bin supports overlay updates, allowing you to ship updated JavaScript to exis
 
 ## How it works
 
-When a binary is built with `--enable-overlay`, it checks for a signed overlay bundle at startup. If a valid bundle is found, it runs that instead of the embedded app. If no bundle is found (or the signature is invalid), it falls back to the embedded app. The binary will never run unsigned or tampered code.
+When a binary is built with `--overlay-compat-string`, it checks for a signed overlay bundle at startup. If a valid bundle is found, it runs that instead of the embedded app. If no bundle is found (or the signature is invalid), it falls back to the embedded app. The binary will never run unsigned or tampered code.
 
 ## Building an overlay-enabled binary
 
-Overlay-enabled binaries must be built from source because the overlay runtime needs to be compiled into Node. The signing public key is embedded at **`--build`** time, so the placeholder binaries published by this project (and any cached via `--ci`) carry no baked-in key — every consumer stamps in their own:
+Overlay-enabled binaries must be built from source because the overlay runtime needs to be compiled into Node. The signing public key and compat string are embedded at **`--build`** time, so the placeholder binaries published by this project (and any cached via `--ci`) carry neither — every consumer stamps in their own:
 
 ```bash
-# 1. Build Node from source with overlay support (slow, one-time). No key yet.
+# 1. Build Node from source with overlay support (slow, one-time). No key or compat string yet.
 js2bin --ci --node=22.22.0 --size=2MB --cache --enable-overlay
 
 # 2. Embed your app AND your signing public key into the overlay-enabled cached
-#    binary (fast). --signing-public-key is required with --enable-overlay.
-js2bin --build --app=/path/to/app.js --node=22.22.0 --cache --enable-overlay \
-  --signing-public-key=overlay-signing.pub --name=MyApp
+#    binary (fast). --overlay-compat-string enables overlays and requires --signing-public-key.
+js2bin --build --app=/path/to/app.js --node=22.22.0 --cache \
+  --signing-public-key=overlay-signing.pub --overlay-compat-string=1.2.3 --name=MyApp
 ```
 
 Because step 1 produces a keyless artifact, the overlay-enabled binaries published to GitHub releases can be reused by anyone: download, run `--build` with your own key, ship.
@@ -149,12 +152,12 @@ Because step 1 produces a keyless artifact, the overlay-enabled binaries publish
 ## Creating an overlay update bundle
 
 ```bash
-js2bin --overlay --app=/path/to/updated-app.js --signing-key=overlay-signing.key --output=./overlay-bundle/
+js2bin --overlay --app=/path/to/updated-app.js --signing-key=overlay-signing.key --overlay-compat-string=1.2.3 --output=./overlay-bundle/
 ```
 
 This produces two artifacts:
 - `bundle.js` — brotli-compressed, base64-encoded JavaScript
-- `bundle.js.sig` — ECDSA P-256 signature (DER-encoded)
+- `bundle.js.sig` — `J2BCOMPAT1` | uint16 BE compat length | compat string | ECDSA P-256 signature (DER) over `J2BCOMPAT1` | length | compat string | `bundle.js`
 
 ## Deploying an overlay update
 
@@ -173,9 +176,15 @@ The binary looks for bundles at `<binary-dir>/overlay/current/` by default. Over
 
 Empty `bundle.js` or `bundle.js.sig` files are treated as if absent — the binary silently falls back to the embedded app. This lets you "disable" an overlay by truncating the files without producing log noise.
 
+## Detecting the active overlay at runtime
+
+In an overlay-enabled binary, `process.js2bin.overlayLoaded` is `true` when the running JS came from the overlay bundle and `false` when the binary fell back to the embedded app (no bundle, rejected bundle, or a bundle that failed to decompress). Binaries built without overlay support do not define `process.js2bin`.
+
 ## Signature verification
 
 The binary verifies overlay bundles using ECDSA P-256 (SHA-256) against the public key stamped into the binary at `--build` time via `--signing-public-key`. That embedded key is the only accepted verifier — there is no on-disk key loading.
+
+Before verifying, the binary compares the compat string in `bundle.js.sig` with its own `--overlay-compat-string` (exact match). Mismatches and legacy raw-DER signatures are rejected, so an overlay built for one release is never loaded by another.
 
 If signature verification fails, the binary falls back to the embedded app and logs a warning to stderr.
 

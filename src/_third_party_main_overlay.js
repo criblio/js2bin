@@ -61,6 +61,24 @@ function extractEmbeddedEncryptionKey() {
 
 const EMBEDDED_ENCRYPTION_KEY = extractEmbeddedEncryptionKey();
 
+// Compat string slot (lib/_js2bin_compat_string.js), stamped at --build time via
+// --overlay-compat-string. An overlay loads only if its signed compat string is identical.
+function extractEmbeddedCompatString() {
+  let raw;
+  try {
+    raw = process.binding('natives')._js2bin_compat_string;
+  } catch {
+    return null;
+  }
+  if (typeof raw !== 'string' || raw.length === 0) return null;
+  if (raw.startsWith('`~')) return null;
+  const nullIdx = raw.indexOf('\0');
+  const trimmed = (nullIdx > -1 ? raw.substr(0, nullIdx) : raw).trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+const EMBEDDED_COMPAT_STRING = extractEmbeddedCompatString();
+
 function decryptBundle(encData, hexKey) {
   const iv = encData.slice(0, 12);
   const authTag = encData.slice(encData.length - 16);
@@ -106,6 +124,32 @@ function tryLoadOverlayBundle(execDir) {
   }
   if (sigData.length === 0) return null;
 
+  // Everything up to the signature check needs only the sig, so a stale
+  // overlay is rejected before the bundle is read or decrypted.
+  if (!EMBEDDED_SIGNING_PUBLIC_KEY) {
+    process.stderr.write('[js2bin] overlay: no embedded signing key — binary was not built with --signing-public-key. Ignoring overlay bundle.\n');
+    return null;
+  }
+
+  if (!EMBEDDED_COMPAT_STRING) {
+    process.stderr.write('[js2bin] overlay: no embedded compat string — binary was not built with --overlay-compat-string. Ignoring overlay bundle.\n');
+    return null;
+  }
+
+  // Shared with OverlayBuilder; installed as lib/_js2bin_sig_format.js at --ci.
+  // Required lazily so a missing module only disables overlays (caller catches).
+  const { parseSigFile } = require('_js2bin_sig_format');
+  const sig = parseSigFile(sigData);
+  if (typeof sig === 'string') {
+    process.stderr.write(`[js2bin] overlay: ${sig}. Falling back to embedded JS.\n`);
+    return null;
+  }
+
+  if (sig.compatString !== EMBEDDED_COMPAT_STRING) {
+    process.stderr.write(`[js2bin] overlay: compat string mismatch (overlay=${JSON.stringify(sig.compatString)}, binary=${JSON.stringify(EMBEDDED_COMPAT_STRING)}). Falling back to embedded JS.\n`);
+    return null;
+  }
+
   let bundleData;
   try {
     bundleData = fs.readFileSync(bundlePath);
@@ -130,12 +174,7 @@ function tryLoadOverlayBundle(execDir) {
     }
   }
 
-  if (!EMBEDDED_SIGNING_PUBLIC_KEY) {
-    process.stderr.write('[js2bin] overlay: no embedded signing key — binary was not built with --signing-public-key. Ignoring overlay bundle.\n');
-    return null;
-  }
-
-  if (!verifySignature(bundleData, sigData, EMBEDDED_SIGNING_PUBLIC_KEY)) {
+  if (!verifySignature(Buffer.concat([sig.header, bundleData]), sig.signature, EMBEDDED_SIGNING_PUBLIC_KEY)) {
     process.stderr.write('[js2bin] overlay: signature verification failed — bundle is unsigned or tampered. Falling back to embedded JS.\n');
     return null;
   }
@@ -166,10 +205,12 @@ const embeddedSource = parts[1];
 
 // Try overlay bundle
 let activeSource = embeddedSource;
+let overlayLoaded = false;
 try {
   const overlayBundle = tryLoadOverlayBundle(dirname(process.execPath));
   if (overlayBundle) {
     activeSource = overlayBundle;
+    overlayLoaded = true;
   }
 } catch (err) {
   process.stderr.write(`[js2bin] overlay: unexpected error during overlay load: ${err.message}. Falling back to embedded JS.\n`);
@@ -182,12 +223,25 @@ mod.id = '.'; // main module
 mod.filename = filename; // dirname of this is used by require
 process.mainModule = mod; // main module
 
+// Lets the app tell whether it runs the overlay or the embedded JS. A process
+// property rather than an env var: child processes inherit env, but each one
+// re-runs this loader and gets its own value.
+function setOverlayLoaded(loaded) {
+  Object.defineProperty(process, 'js2bin', {
+    value: Object.freeze({ overlayLoaded: loaded }),
+    enumerable: false
+  });
+}
+
 function decompressActiveSource() {
   try {
-    return brotliDecompressSync(Buffer.from(activeSource, 'base64'), { chunkSize: 128 * 1024 * 1024 }).toString();
+    const source = brotliDecompressSync(Buffer.from(activeSource, 'base64'), { chunkSize: 128 * 1024 * 1024 }).toString();
+    setOverlayLoaded(overlayLoaded);
+    return source;
   } catch (err) {
-    if (activeSource !== embeddedSource) {
+    if (overlayLoaded) {
       process.stderr.write(`[js2bin] overlay: failed to decompress overlay bundle: ${err.message}. Falling back to embedded JS.\n`);
+      setOverlayLoaded(false);
       return brotliDecompressSync(Buffer.from(embeddedSource, 'base64'), { chunkSize: 128 * 1024 * 1024 }).toString();
     }
     throw err;

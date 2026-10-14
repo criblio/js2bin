@@ -7,6 +7,7 @@ const os = require('os');
 const zlib = require('zlib');
 
 const { OverlayBuilder } = require('../src/OverlayBuilder');
+const { compatHeader, parseSigFile } = require('../src/_js2bin_sig_format');
 
 function generateKeypair() {
   return crypto.generateKeyPairSync('ec', {
@@ -70,6 +71,7 @@ describe('OverlayBuilder', () => {
       const builder = new OverlayBuilder({
         app: appFile,
         signingKey: keyFile,
+        compatString: 'goat-v1',
         output: outputDir,
       });
 
@@ -84,6 +86,7 @@ describe('OverlayBuilder', () => {
       const builder = new OverlayBuilder({
         app: appFile,
         signingKey: keyFile,
+        compatString: 'goat-v1',
         output: outputDir,
       });
 
@@ -99,6 +102,7 @@ describe('OverlayBuilder', () => {
       const builder = new OverlayBuilder({
         app: appFile,
         signingKey: keyFile,
+        compatString: 'goat-v1',
         output: outputDir,
       });
 
@@ -106,10 +110,12 @@ describe('OverlayBuilder', () => {
 
       const bundleData = fs.readFileSync(path.join(outputDir, 'bundle.js'));
       const sigData = fs.readFileSync(path.join(outputDir, 'bundle.js.sig'));
+      const header = Buffer.concat([Buffer.from('J2BCOMPAT1'), Buffer.from([0x00, 0x07]), Buffer.from('goat-v1')]);
+      assert.ok(sigData.subarray(0, header.length).equals(header));
       const verify = crypto.createVerify('SHA256');
-      verify.update(bundleData);
+      verify.update(Buffer.concat([header, bundleData]));
       verify.end();
-      assert.ok(verify.verify({ key: keypair.publicKey, dsaEncoding: 'der' }, sigData));
+      assert.ok(verify.verify({ key: keypair.publicKey, dsaEncoding: 'der' }, sigData.subarray(header.length)));
     });
 
     it('should produce a bundle that decompresses to the original JS via the full artifact set', () => {
@@ -117,6 +123,7 @@ describe('OverlayBuilder', () => {
       const builder = new OverlayBuilder({
         app: appFile,
         signingKey: keyFile,
+        compatString: 'goat-v1',
         output: outputDir,
       });
 
@@ -125,10 +132,12 @@ describe('OverlayBuilder', () => {
       // Verify signature
       const bundleData = fs.readFileSync(path.join(outputDir, 'bundle.js'));
       const sigData = fs.readFileSync(path.join(outputDir, 'bundle.js.sig'));
+      const header = Buffer.concat([Buffer.from('J2BCOMPAT1'), Buffer.from([0x00, 0x07]), Buffer.from('goat-v1')]);
+      assert.ok(sigData.subarray(0, header.length).equals(header));
       const verify = crypto.createVerify('SHA256');
-      verify.update(bundleData);
+      verify.update(Buffer.concat([header, bundleData]));
       verify.end();
-      assert.ok(verify.verify({ key: keypair.publicKey, dsaEncoding: 'der' }, sigData));
+      assert.ok(verify.verify({ key: keypair.publicKey, dsaEncoding: 'der' }, sigData.subarray(header.length)));
 
       // Verify content round-trips
       const decompressed = zlib.brotliDecompressSync(Buffer.from(bundleData.toString(), 'base64')).toString();
@@ -140,11 +149,41 @@ describe('OverlayBuilder', () => {
       const builder = new OverlayBuilder({
         app: appFile,
         signingKey: keyFile,
+        compatString: 'goat-v1',
         output: outputDir,
       });
 
       builder.build();
       assert.ok(fs.existsSync(path.join(outputDir, 'bundle.js')));
+    });
+  });
+
+  describe('parseSigFile', () => {
+    it('round-trips compatHeader', () => {
+      const der = Buffer.from([0x30, 0x01, 0x02]);
+      const sig = parseSigFile(Buffer.concat([compatHeader('goat-v1'), der]));
+      assert.equal(sig.compatString, 'goat-v1');
+      assert.ok(sig.header.equals(compatHeader('goat-v1')));
+      assert.ok(sig.signature.equals(der));
+    });
+
+    it('rejects legacy raw-DER and short input', () => {
+      assert.equal(parseSigFile(Buffer.from([0x30, 0x45, 0x02])), 'unsupported signature format');
+      assert.equal(parseSigFile(Buffer.from('J2BCOMPAT1')), 'unsupported signature format');
+    });
+
+    it('rejects compat length beyond file or over 64', () => {
+      const truncated = compatHeader('goat-v1').subarray(0, 14);
+      assert.equal(parseSigFile(truncated), 'invalid signature compat string length');
+      const len = Buffer.alloc(2);
+      len.writeUInt16BE(65);
+      const oversized = Buffer.concat([Buffer.from('J2BCOMPAT1'), len, Buffer.alloc(65 + 70, 'x')]);
+      assert.equal(parseSigFile(oversized), 'invalid signature compat string length');
+    });
+
+    it('compatHeader rejects invalid compat strings', () => {
+      assert.throws(() => compatHeader('x'.repeat(65)), /compat string/);
+      assert.throws(() => compatHeader(''), /compat string/);
     });
   });
 });

@@ -3,6 +3,7 @@
 const { NodeJsBuilder } = require('./src/NodeBuilder');
 const { OverlayBuilder } = require('./src/OverlayBuilder');
 const { log } = require('./src/util');
+const { COMPAT_STRING_RE } = require('./src/_js2bin_sig_format');
 const fs = require('fs');
 
 function usage(msg) {
@@ -37,14 +38,16 @@ command-args: take the form of --name=value
   --gpg-key-path: (opt) Path to the armored public key to verify against (or set
                 JS2BIN_GPG_KEY_PATH). Defaults to the key committed at
                 keys/release-signing.asc. Only used with --require-signature.
-  --enable-overlay: (opt) Use an overlay-enabled cached binary (built via --ci --enable-overlay).
-                    Disabled by default.
+  --overlay-compat-string: (opt) Enable overlays and embed this opaque string
+                (1-64 printable ASCII, no spaces) into the binary. Overlays with a different
+                --overlay-compat-string are ignored.
+                e.g. --overlay-compat-string=1.2.3
   --signing-public-key: Path to ECDSA P-256 public key PEM file to embed into
-                the binary. Required with --enable-overlay.
+                the binary. Required with --overlay-compat-string.
                 e.g. --signing-public-key=/path/to/overlay-signing.pub
   --encryption-key: (opt) Path to a file containing a 64-char hex AES-256 key to embed
                 into the binary for decrypting encrypted overlay bundles (bundle.js.enc).
-                Only valid with --build --enable-overlay.
+                Only valid with --build --overlay-compat-string.
                 e.g. --encryption-key=/path/to/overlay-encryption.key
 
 --overlay: build a signed overlay bundle from a JS application
@@ -52,6 +55,8 @@ command-args: take the form of --name=value
               e.g. --app=/path/to/app/index.js
   --signing-key: Path to ECDSA P-256 private key PEM file for signing
               e.g. --signing-key=/path/to/overlay-signing.key
+  --overlay-compat-string: Must equal the --overlay-compat-string of the target binary. Required.
+              e.g. --overlay-compat-string=1.2.3
   --output:   (opt) Output directory (default: ./overlay-bundle/)
               e.g. --output=/path/to/output
 
@@ -70,8 +75,8 @@ command-args: take the form of --name=value
   --pointer-compress:  (opt) whether to enable pointer compression
   --enable-overlay: (opt) Compile the overlay runtime into the binary. Without this,
                     no overlay code exists in the binary. The resulting binary
-                    has no embedded signing key — use --build --signing-public-key
-                    to stamp one in.
+                    has no embedded signing key or compat string — use --build
+                    --signing-public-key --overlay-compat-string to stamp them in.
 
 --help: print this help message
 `);
@@ -90,9 +95,9 @@ function parseArgs() {
       return usage();
     }
 
-    const parts = arg.substr(2).split('=', 2);
-    const name = parts[0];
-    const value = parts.length === 1 ? true : parts[1];
+    const eqIdx = arg.indexOf('=');
+    const name = eqIdx < 0 ? arg.substr(2) : arg.slice(2, eqIdx);
+    const value = eqIdx < 0 ? true : arg.slice(eqIdx + 1);
     if (args[name] !== undefined) {
       if (Array.isArray(args[name])) { args[name].push(value); } else { args[name] = [args[name], value]; }
     } else {
@@ -113,23 +118,36 @@ function parseArgs() {
   args.requireSignature = (args['require-signature'] === true);
   args.gpgSignatureUrl = (args['gpg-signature-url'] || process.env.JS2BIN_GPG_SIGNATURE_URL || undefined);
   args.gpgKeyPath = (args['gpg-key-path'] || process.env.JS2BIN_GPG_KEY_PATH || undefined);
-  args.enableOverlay = (args['enable-overlay'] === true);
+  args.compatString = (args['overlay-compat-string'] || undefined);
+  if (args.compatString !== undefined && (typeof args.compatString !== 'string' || !COMPAT_STRING_RE.test(args.compatString))) {
+    return usage('--overlay-compat-string must be 1-64 printable ASCII characters, not starting with `~');
+  }
+  if (args.compatString && args.ci) {
+    return usage('--overlay-compat-string is only supported with --build or --overlay');
+  }
+  if (args.build && args['enable-overlay']) {
+    return usage('--build --enable-overlay was replaced by --overlay-compat-string');
+  }
+  if (args.overlay && !args.compatString) {
+    return usage('--overlay requires --overlay-compat-string');
+  }
+  args.enableOverlay = args.ci ? (args['enable-overlay'] === true) : !!(args.build && args.compatString);
   args.signingPublicKey = (args['signing-public-key'] || undefined);
   args.encryptionKey = (args['encryption-key'] || undefined);
-  if (args.signingPublicKey && !args.enableOverlay) {
-    return usage('--signing-public-key requires --enable-overlay');
-  }
   if (args.signingPublicKey && !args.build) {
     return usage('--signing-public-key is only supported with --build (key is embedded at build time)');
   }
-  if (args.build && args.enableOverlay && !args.signingPublicKey) {
-    return usage('--build --enable-overlay requires --signing-public-key');
+  if (args.signingPublicKey && !args.enableOverlay) {
+    return usage('--signing-public-key requires --overlay-compat-string');
   }
-  if (args.encryptionKey && !args.enableOverlay) {
-    return usage('--encryption-key requires --enable-overlay');
+  if (args.enableOverlay && args.build && !args.signingPublicKey) {
+    return usage('--overlay-compat-string requires --signing-public-key');
   }
   if (args.encryptionKey && !args.build) {
     return usage('--encryption-key is only supported with --build (key is embedded at build time)');
+  }
+  if (args.encryptionKey && !args.enableOverlay) {
+    return usage('--encryption-key requires --overlay-compat-string');
   }
   return args;
 }
@@ -153,7 +171,7 @@ if (args.build) {
   const plats = asArray(args.platform);
   versions.forEach(version => {
     plats.forEach(plat => {
-      const builder = new NodeJsBuilder(args.dir, version, app, args.name, undefined, args.buildVersion, undefined, args.signingPublicKey, args.enableOverlay, args.encryptionKey);
+      const builder = new NodeJsBuilder(args.dir, version, app, args.name, undefined, args.buildVersion, undefined, args.signingPublicKey, args.enableOverlay, args.encryptionKey, args.compatString);
       p = p.then(() => {
         const arch = args.arch || 'x64';
         log(`building for version=${version}, plat=${plat} app=${app}} arch=${arch}`);
@@ -178,6 +196,7 @@ if (args.build) {
   const builder = new OverlayBuilder({
     app,
     signingKey: args['signing-key'],
+    compatString: args.compatString,
     output: args.output || undefined,
   });
 
