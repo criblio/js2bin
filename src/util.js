@@ -241,16 +241,16 @@ function verifyGpgSignature(file, opts = {}) {
   // binary transform (also no agent) to turn the committed .asc key into the
   // binary keyring gpgv wants.
   //
-  // gpgv treats a --keyring path with NO slash as a name inside ~/.gnupg. On
-  // Windows the paths are backslash-separated (C:\...), which the MSYS gpgv
-  // sees as slash-less and mis-resolves. Convert to forward slashes (valid on
-  // Windows, and gpgv then uses the path literally).
   const fwd = (p) => p.replace(/\\/g, '/');
+  // gpgv reads a leading `scheme:` in --keyring as a resource URL, so a Windows
+  // C:/... path fails with "invalid key resource URL". The gnupg-ring: prefix
+  // forces it to take the rest as a literal filename (no-op on POSIX paths).
+  const keyringArg = `gnupg-ring:${fwd(keyringFile)}`;
   return download(sigUrl, sigFile, headers)
     .catch(err => { throw sigError(`could not fetch signature ${sigUrl}: ${err.message}`); })
     .then(() => runCommand('gpg', ['--batch', '--no-tty', '--yes', '--dearmor', '-o', keyringFile, keyPath], undefined, undefined, true)
       .catch(() => { throw sigError(`failed to prepare public key ${keyPath}`); }))
-    .then(() => runCommand('gpgv', ['--keyring', fwd(keyringFile), fwd(sigFile), fwd(file)], undefined, undefined, true)
+    .then(() => runCommand('gpgv', ['--keyring', keyringArg, fwd(sigFile), fwd(file)], undefined, undefined, true)
       .catch(() => { throw sigError(`GPG signature verification failed for ${file}`); }))
     .then(() => { log(`verified GPG signature for ${file}`); cleanup(); })
     .catch(err => { cleanup(); throw err; });
