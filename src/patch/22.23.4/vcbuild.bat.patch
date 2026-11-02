@@ -1,0 +1,29 @@
+expose option for configuring pointer compression
+
+
+--- a/vcbuild.bat
++++ b/vcbuild.bat
+@@ -74,6 +74,7 @@ set extra_msbuild_args=
+ set compile_commands=
+ set cfg=
+ set v8windbg=
++set v8_ptr_compress=
+ set exit_code=0
+ 
+ :next-arg
+@@ -151,6 +152,7 @@ if /i "%1"=="cctest"        set cctest=1&goto arg-ok
+ if /i "%1"=="openssl-no-asm"   set openssl_no_asm=1&goto arg-ok
+ if /i "%1"=="no-shared-roheap" set no_shared_roheap=1&goto arg-ok
+ if /i "%1"=="doc"           set doc=1&goto arg-ok
++if /i "%1"=="v8_ptr_compress"   set v8_ptr_compress=1&goto arg-ok
+ if /i "%1"=="binlog"        set extra_msbuild_args=/binaryLogger:out\%config%\node.binlog&goto arg-ok
+ if /i "%1"=="compile-commands" set compile_commands=1&goto arg-ok
+ if /i "%1"=="cfg"           set cfg=1&goto arg-ok
+@@ -212,6 +214,7 @@ if defined debug_nghttp2    set configure_flags=%configure_flags% --debug-nghttp
+ if defined openssl_no_asm   set configure_flags=%configure_flags% --openssl-no-asm
+ if defined no_shared_roheap set configure_flags=%configure_flags% --disable-shared-readonly-heap
+ if defined DEBUG_HELPER     set configure_flags=%configure_flags% --verbose
++if defined v8_ptr_compress  set configure_flags=%configure_flags% --experimental-enable-pointer-compression
+ if defined ccache_path      set configure_flags=%configure_flags% --use-ccache-win
+ if defined compile_commands set configure_flags=%configure_flags% -C
+ if defined cfg              set configure_flags=%configure_flags% --control-flow-guard

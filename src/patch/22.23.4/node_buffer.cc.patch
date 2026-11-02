@@ -1,0 +1,175 @@
+--- a/src/node_buffer.cc
++++ b/src/node_buffer.cc
+@@ -34,6 +34,7 @@
+ 
+ #include "util-inl.h"
+ #include "v8-fast-api-calls.h"
++#include "v8-internal.h"
+ #include "v8.h"
+ 
+ #include <stdint.h>
+@@ -80,6 +81,100 @@ using v8::Uint32;
+ using v8::Uint8Array;
+ using v8::Value;
+ 
++// Helper function to create a sandbox-aware backing store
++std::unique_ptr<BackingStore> CreateBackingStore(
++      Isolate* isolate,
++      void* data,
++      size_t byte_length,
++      BackingStore::DeleterCallback deleter,
++      void* deleter_data) {
++  #ifdef V8_ENABLE_SANDBOX
++    // When V8 sandbox is enabled, we need to allocate memory through V8's
++    // ArrayBuffer::Allocator to ensure it's within the sandbox memory region.
++    // This creates a new backing store by first allocating memory through V8,
++    // copying any existing data into it, and setting up proper deallocation.
++    ArrayBuffer::Allocator* allocator = isolate->GetArrayBufferAllocator();
++    if (!allocator) {
++      fprintf(stderr, "Failed to get array buffer allocator\n");
++      return nullptr;
++    }
++    
++    // Allocate memory using the isolate's allocator to ensure it's within the sandbox
++    void* allocated_memory = allocator->Allocate(byte_length);
++    if (!allocated_memory) {
++      fprintf(stderr, "Failed to allocate memory\n");
++      return nullptr;
++    }
++  
++    // If we have data to copy, copy it into the allocated memory
++    if (data != nullptr) {
++      memcpy(allocated_memory, data, byte_length);
++    }
++  
++    // Define a structure to hold all the information needed for proper memory cleanup
++    struct BackingStoreDeleterContext {
++      BackingStore::DeleterCallback original_deleter;  // Original callback to free external resources
++      void* original_deleter_data;                     // Data passed to the original deleter
++      void* original_data;                             // Original data pointer
++      ArrayBuffer::Allocator* allocator;               // Allocator used to free the memory
++    };
++    
++    std::unique_ptr<BackingStoreDeleterContext> deletion_context;
++    if (deleter != nullptr) {
++      deletion_context = std::make_unique<BackingStoreDeleterContext>(BackingStoreDeleterContext{
++        deleter, deleter_data, data, allocator
++      });
++    }
++  
++    std::unique_ptr<BackingStore> store;
++    if (deleter != nullptr) {
++      store = ArrayBuffer::NewBackingStore(
++        allocated_memory, 
++        byte_length,
++        [](void* data, size_t length, void* deletion_context_ptr) {
++          auto* context = static_cast<BackingStoreDeleterContext*>(deletion_context_ptr);
++          // Call the original deleter to clean up any external resources
++          context->original_deleter(context->original_data, length, context->original_deleter_data);
++          // Free the memory using the allocator
++          context->allocator->Free(data, length);
++        },
++        deletion_context.get()  // Pass the deletion context for memory cleanup
++      );
++    } else {
++      store = ArrayBuffer::NewBackingStore(
++        allocated_memory, 
++        byte_length,
++        [](void* data, size_t length, void* allocator_ptr) {
++          auto* allocator = static_cast<ArrayBuffer::Allocator*>(allocator_ptr);
++          // Free the memory using the allocator
++          allocator->Free(data, length);
++        },
++        static_cast<void*>(allocator)  // Pass the allocator for memory cleanup
++      );
++    }
++  
++    // Handle the case where backing store creation fails
++    if (!store) {
++      fprintf(stderr, "Failed to create backing store\n");
++      allocator->Free(allocated_memory, byte_length);
++      return nullptr;
++    }
++  
++    // Transfer ownership of the deletion context to the BackingStore
++    // This ensures the deletion context lives as long as the BackingStore and is properly cleaned up
++    deletion_context.release();
++  
++    return store;
++    #else
++      // When sandbox is not enabled, we can directly create the backing store
++      if (deleter != nullptr) {
++        return ArrayBuffer::NewBackingStore(data, byte_length, deleter, deleter_data);
++      } else {
++        return ArrayBuffer::NewBackingStore(isolate, byte_length);
++      }
++    #endif
++    }
++
+ namespace {
+ 
+ class CallbackInfo : public Cleanable {
+@@ -121,7 +216,7 @@ Local<ArrayBuffer> CallbackInfo::CreateTrackedArrayBuffer(
+ 
+   CallbackInfo* self = new CallbackInfo(env, callback, data, hint);
+   std::unique_ptr<BackingStore> bs =
+-      ArrayBuffer::NewBackingStore(data, length, [](void*, size_t, void* arg) {
++      CreateBackingStore(env->isolate(), data, length, [](void*, size_t, void* arg) {
+         static_cast<CallbackInfo*>(arg)->OnBackingStoreFree();
+       }, self);
+   Local<ArrayBuffer> ab = ArrayBuffer::New(env->isolate(), std::move(bs));
+@@ -308,7 +403,7 @@ MaybeLocal<Object> New(Isolate* isolate,
+   std::unique_ptr<BackingStore> store;
+ 
+   if (length > 0) {
+-    store = ArrayBuffer::NewBackingStore(isolate, length);
++    store = CreateBackingStore(isolate, nullptr, length, nullptr, nullptr);
+ 
+     if (!store) [[unlikely]] {
+       THROW_ERR_MEMORY_ALLOCATION_FAILED(isolate);
+@@ -326,7 +421,7 @@ MaybeLocal<Object> New(Isolate* isolate,
+     if (actual > 0) [[likely]] {
+       if (actual < length) {
+         std::unique_ptr<BackingStore> old_store = std::move(store);
+-        store = ArrayBuffer::NewBackingStore(isolate, actual);
++        store = CreateBackingStore(isolate, nullptr, actual, nullptr, nullptr);
+         memcpy(store->Data(), old_store->Data(), actual);
+       }
+       Local<ArrayBuffer> buf = ArrayBuffer::New(isolate, std::move(store));
+@@ -370,7 +465,7 @@ MaybeLocal<Object> New(Environment* env, size_t length) {
+   {
+     NoArrayBufferZeroFillScope no_zero_fill_scope(env->isolate_data());
+     std::unique_ptr<BackingStore> bs =
+-        ArrayBuffer::NewBackingStore(isolate, length);
++        CreateBackingStore(isolate, nullptr, length, nullptr, nullptr);
+ 
+     CHECK(bs);
+ 
+@@ -413,7 +508,7 @@ MaybeLocal<Object> Copy(Environment* env, const char* data, size_t length) {
+   {
+     NoArrayBufferZeroFillScope no_zero_fill_scope(env->isolate_data());
+     std::unique_ptr<BackingStore> bs =
+-        ArrayBuffer::NewBackingStore(isolate, length);
++        CreateBackingStore(isolate, nullptr, length, nullptr, nullptr);
+ 
+     CHECK(bs);
+ 
+@@ -514,7 +609,7 @@ MaybeLocal<Object> New(Environment* env,
+     free(data);
+   };
+   std::unique_ptr<BackingStore> bs =
+-      v8::ArrayBuffer::NewBackingStore(data, length, free_callback, nullptr);
++      CreateBackingStore(env->isolate(), data, length, free_callback, nullptr);
+ 
+   Local<ArrayBuffer> ab = v8::ArrayBuffer::New(env->isolate(), std::move(bs));
+ 
+@@ -1412,7 +1507,7 @@ inline size_t CheckNumberToSize(Local<Value> number) {
+   CHECK(value >= 0 && value < maxSize);
+   size_t size = static_cast<size_t>(value);
+ #ifdef V8_ENABLE_SANDBOX
+-  CHECK_LE(size, kMaxSafeBufferSizeForSandbox);
++  CHECK_LE(size, v8::internal::kMaxSafeBufferSizeForSandbox);
+ #endif
+   return size;
+ }
+
