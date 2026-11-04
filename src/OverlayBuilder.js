@@ -32,7 +32,7 @@ class OverlayBuilder {
     const compressed = brotliCompressSync(raw, {
       params: {
         [zlib.constants.BROTLI_PARAM_QUALITY]: zlib.constants.BROTLI_MAX_QUALITY,
-        [zlib.constants.BROTLI_PARAM_SIZE_HINT]: raw.length,
+        [zlib.constants.BROTLI_PARAM_LGWIN]: zlib.constants.BROTLI_MAX_WINDOW_BITS,
       },
     });
     return compressed.toString('base64');
