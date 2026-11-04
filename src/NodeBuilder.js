@@ -300,7 +300,7 @@ class NodeJsBuilder {
       {
         params: {
           [zlib.constants.BROTLI_PARAM_QUALITY]: zlib.constants.BROTLI_MAX_QUALITY,
-          [zlib.constants.BROTLI_PARAM_SIZE_HINT]: fs.statSync(this.appFile).size
+          [zlib.constants.BROTLI_PARAM_LGWIN]: zlib.constants.BROTLI_MAX_WINDOW_BITS,
         }
       }
     ).toString('base64');
