@@ -69,7 +69,8 @@ function runCommand(command, args = [], cwd = undefined, env = undefined, verbos
     spawn(command, args, {
       cwd,
       env: env || { ...process.env },
-      stdio: verbose ? 'inherit' : 'ignore'
+      stdio: verbose ? 'inherit' : 'ignore',
+      shell: command.endsWith('.bat')
     })
       .once('error', reject)
       .once('close', (code) => {
