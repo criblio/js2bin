@@ -48,6 +48,12 @@ const darwinArch = {
   x64: 'x86_64',
 };
 
+const windowsArch = {
+  arm64: 'arm64',
+  x64: 'x64',
+  x86: 'x86',
+};
+
 function buildName(platform, arch, placeHolderSizeMB, version, buildVersion, enableOverlay) {
   let name = `${platform}-${arch}-${version}-${buildVersion}-${placeHolderSizeMB}MB`;
   if (enableOverlay) name += '-overlay';
@@ -416,7 +422,15 @@ class NodeJsBuilder {
   // 4. process mainAppFile (gzip, base64 encode it) - could be a placeholder file
   // 5. kick off ./configure & build
   buildFromSource(uploadBuild, cache, container, arch, ptrCompression) {
-    const makeArgs = isWindows ? ['x64', 'no-cctest'] : [`-j${os.cpus().length}`];
+    let winBuildArch;
+    if (isWindows) {
+      winBuildArch = windowsArch[NodeJsBuilder.getArch(arch)];
+      if (!winBuildArch) {
+        log(`Unrecognized arch '${arch}' for windows, but we'll try it anyway`);
+        winBuildArch = arch;
+      }
+    }
+    const makeArgs = isWindows ? [winBuildArch, 'no-cctest'] : [`-j${os.cpus().length}`];
     const configArgs = [];
     if(ptrCompression) {
       if(isWindows) makeArgs.push('v8_ptr_compress');
